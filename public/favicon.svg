@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Spendly">
+  <!--
+    The same mark the app wears in its own header: the indigo-to-violet tile
+    from the design tokens (the s1 and s5 series hues), with an S cut out.
+
+    The S is a stroked path rather than a <text> element, so the icon does not
+    depend on a font being present — a favicon is often rendered by something
+    that has no access to the page's fonts at all.
+  -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6b7bff"/>
+      <stop offset="1" stop-color="#a86bff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="15" fill="url(#tile)"/>
+
+  <path
+    d="M43 23C43 18 38 16 32 16C26 16 21 19 21 24C21 29 26 31 32 32C38 33 43 35 43 40C43 45 38 48 32 48C26 48 21 46 21 41"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="6.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
