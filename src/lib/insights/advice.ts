@@ -160,51 +160,29 @@ const percent = (ratio: number) => `${Math.round(Math.abs(ratio) * 100)}%`
  *  of −16% shown as 16% turns the sentence into nonsense. */
 const signed = (ratio: number) => `${Math.round(ratio * 100)}%`
 
-/** The gap between two rates is in points, so it carries no per-cent sign. */
-const points = (ratio: number) => `${Math.round(Math.abs(ratio) * 100)}`
 
 /* --- what the month looks like against income --------------------- */
 
-const spendingRatio: Rule = ({ health, add, skip }) => {
+/**
+ * The month did not pay for itself.
+ *
+ * This was two rules — one for the ratio, one for the shortfall — which put
+ * two sentences about the same fact in the same bucket of three.
+ */
+const overspent: Rule = ({ health, add, skip }) => {
   if (health.spendingRatio === null) {
     skip({ method: 'spending-ratio', reason: 'Bu ay gəlir qeyd edilməyib' })
     return
   }
-
-  /* The ratio itself is already on screen in the health block, so it only
-     becomes advice when it crosses the line where the month does not pay for
-     itself. Restating it otherwise pushes the category detail out of a bucket
-     that holds three. */
-  const ratio = health.spendingRatio
-  if (ratio <= 1) return
-
-  add({
-    id: 'spending-ratio',
-    method: 'spending-ratio',
-    priority: 'attention',
-    fact: `Bu ay xərcləriniz gəlirinizin ${percent(ratio)}-ni təşkil edir (${formatAZN(
-      health.expenses,
-    )} / ${formatAZN(health.income)}).`,
-    suggestion:
-      'Fərqin hansı kateqoriyalardan gəldiyini nəzərdən keçirməyə dəyər.',
-    materiality: round2(health.expenses - health.income),
-  })
-}
-
-const retained: Rule = ({ health, add, skip }) => {
-  if (health.retainedRate === null) {
-    skip({ method: 'retained', reason: 'Bu ay gəlir qeyd edilməyib' })
-    return
-  }
-
-  // Same reasoning as the ratio: the figure is in the health block already.
   if (health.remaining >= 0) return
 
   add({
-    id: 'retained',
-    method: 'retained',
+    id: 'overspent',
+    method: 'spending-ratio',
     priority: 'attention',
-    fact: `Bu ay gəlirinizdən ${formatAZN(-health.remaining)} çox xərclənib.`,
+    fact: `Bu ay gəlirinizdən ${formatAZN(-health.remaining)} çox xərclədiniz — qazandığınız hər 100 manata qarşı ${Math.round(health.spendingRatio * 100)} manat.`,
+    suggestion:
+      'Fərqin hansı kateqoriyalardan gəldiyinə baxmağa dəyər — aşağıdakı siyahı ən böyükdən başlayır.',
     materiality: Math.abs(health.remaining),
   })
 }
@@ -230,14 +208,13 @@ const retainedTrend: Rule = ({ data, month, health, add, skip }) => {
     method: 'retained',
     priority: gap > 0 ? 'good' : 'review',
     fact:
-      // The gap between two rates is in percentage points, not per cent — and
-      // either rate can be negative, so both keep their sign.
+      // Either rate can be negative, so both keep their sign.
       gap > 0
-        ? `Qalan pulun payı son ${rates.length} ayın ortalamasından ${points(gap)} faiz bəndi yüksəkdir (${signed(health.retainedRate)} / ${signed(average)}).`
-        : `Qalan pulun payı son ${rates.length} ayın ortalamasından ${points(gap)} faiz bəndi aşağıdır (${signed(health.retainedRate)} / ${signed(average)}).`,
+        ? `Bu ay gəlirinizin ${signed(health.retainedRate)}-i qaldı — son ${rates.length} ayda orta hesabla ${signed(average)} qalırdı. Yəni bu ay daha çoxunu saxladınız.`
+        : `Bu ay gəlirinizin ${signed(health.retainedRate)}-i qaldı — son ${rates.length} ayda orta hesabla ${signed(average)} qalırdı. Yəni bu ay daha azını saxladınız.`,
     suggestion:
       gap < 0
-        ? 'Fərqin gəlirin azalmasından, yoxsa xərcin artmasından gəldiyini nəzərdən keçirməyə dəyər.'
+        ? 'Səbəb ya gəlirin azalması, ya da xərcin artmasıdır — hansı olduğuna baxmağa dəyər.'
         : undefined,
     materiality: Math.abs(gap) * health.income,
   })
@@ -263,8 +240,8 @@ const totalVariance: Rule = ({ health, add, skip }) => {
     priority: variance > 0 ? 'attention' : 'good',
     fact:
       variance > 0
-        ? `Ümumi xərciniz plandan ${formatAZN(variance)} çoxdur (${percent(ratio)}).`
-        : `Ümumi xərciniz plandan ${formatAZN(-variance)} azdır (${percent(ratio)}).`,
+        ? `Bu ay ${formatAZN(health.expenses)} xərclədiniz — planladığınızdan ${formatAZN(variance)} çox.`
+        : `Bu ay ${formatAZN(health.expenses)} xərclədiniz — planladığınızdan ${formatAZN(-variance)} az.`,
     materiality: Math.abs(variance),
     meter: {
       value: Math.min(health.expenses / health.plannedExpenses, 1),
@@ -288,8 +265,8 @@ const categoryVariance: Rule = ({ data, month, add }) => {
       priority: variance > 0 ? 'attention' : 'good',
       fact:
         variance > 0
-          ? `${row.category} xərci plandan ${formatAZN(variance)} çoxdur (${formatAZN(row.actual)} / ${formatAZN(row.planned)}).`
-          : `${row.category} xərci plandan ${formatAZN(-variance)} azdır (${formatAZN(row.actual)} / ${formatAZN(row.planned)}).`,
+          ? `${row.category} üçün ${formatAZN(row.planned)} planlamışdınız — ${formatAZN(row.actual)} getdi, ${formatAZN(variance)} çox.`
+          : `${row.category} üçün ${formatAZN(row.planned)} planlamışdınız — ${formatAZN(row.actual)} getdi, ${formatAZN(-variance)} qənaət.`,
       materiality: Math.abs(variance),
       subject: row.category,
       meter: {
@@ -332,8 +309,9 @@ const repeatedOverrun: Rule = ({ data, month, add, skip }) => {
       id: `repeated-${category}`,
       method: 'variance',
       priority: 'attention',
-      fact: `${category} son ${window} ayın ${over.length}-ində planı aşıb — cəmi ${formatAZN(excess)}.`,
-      suggestion: `Nəzərdən keçirməyə dəyər: ya bu kateqoriyanın xərci, ya da onun üçün qoyulan plan məbləği.`,
+      fact: `${category} son ${window} ayın ${over.length}-ində planı aşıb — bu aylarda cəmi ${formatAZN(excess)} artıq gedib.`,
+      suggestion:
+        'Bir dəfə aşmaq təsadüf ola bilər; hər ay aşmaq adətən plan məbləğinin real olmadığını göstərir. Ya xərcə, ya plana baxmağa dəyər.',
       materiality: excess,
       subject: category,
     })
@@ -369,10 +347,10 @@ const anomaly: Rule = ({ data, month, add, skip }) => {
       id: `anomaly-${row.category}`,
       method: 'anomaly',
       priority: difference > 0 ? 'attention' : 'review',
-      fact: `${row.category} bu ay ${formatAZN(row.actual)} — son ${history.length} ayın adi səviyyəsi ${formatAZN(typical)} olub.`,
+      fact: `${row.category} üçün adətən ayda ${formatAZN(typical)} çıxır — bu ay ${formatAZN(row.actual)} çıxdı, ${formatAZN(Math.abs(difference))} fərqlə.`,
       suggestion:
         difference > 0
-          ? 'Birdəfəlik xərc olub-olmadığını yoxlamağa dəyər.'
+          ? 'Birdəfəlik bir xərc olubsa, gözlənilən haldır. Deyilsə, növbəti aylarda da təkrarlanacaq.'
           : undefined,
       materiality: Math.abs(difference),
       subject: row.category,
@@ -410,8 +388,8 @@ const trend: Rule = ({ data, month, add, skip }) => {
       priority: ratio > 0 ? 'review' : 'good',
       fact:
         ratio > 0
-          ? `${row.category} xərci son 3 ayın ortalamasından ${percent(ratio)} çoxdur (${formatAZN(row.actual)} / ${formatAZN(round2(average))}).`
-          : `${row.category} xərci son 3 ayın ortalamasından ${percent(ratio)} azdır (${formatAZN(row.actual)} / ${formatAZN(round2(average))}).`,
+          ? `${row.category} son 3 ayda orta hesabla ${formatAZN(round2(average))} olub — bu ay ${formatAZN(row.actual)}, ${percent(ratio)} çox.`
+          : `${row.category} son 3 ayda orta hesabla ${formatAZN(round2(average))} olub — bu ay ${formatAZN(row.actual)}, ${percent(ratio)} az.`,
       materiality: Math.abs(difference),
       subject: row.category,
     })
@@ -452,8 +430,9 @@ const lifestyle: Rule = ({ data, month, add, skip }) => {
     id: 'lifestyle',
     method: 'lifestyle',
     priority: 'review',
-    fact: `Son 3 ayda xərcləriniz ${percent(expenseGrowth)} artıb, gəliriniz ${percent(incomeGrowth)} — fərq ${percent(gap)}.`,
-    suggestion: 'Artımın hansı kateqoriyalardan gəldiyini nəzərdən keçirməyə dəyər.',
+    fact: `Xərcləriniz gəlirinizdən sürətlə artır — son 3 ayda xərc ${percent(expenseGrowth)}, gəlir isə ${percent(incomeGrowth)} artıb.`,
+    suggestion:
+      'Gəlir artanda xərcin artması adi haldır, amma bu templə fərq açılır. Artımın hansı kateqoriyalardan gəldiyinə baxmağa dəyər.',
     materiality: round2(expenseNow - expenseBefore),
   })
 }
@@ -475,7 +454,7 @@ const concentration: Rule = ({ data, month, health, add }) => {
     id: 'concentration',
     method: 'concentration',
     priority: 'review',
-    fact: `${top.category} bu ayın xərclərinin ${percent(share)}-ni təşkil edir — ${formatAZN(top.actual)}.`,
+    fact: `Xərclədiyiniz hər 100 manatın ${Math.round(share * 100)} manatı ${top.category} kateqoriyasına gedir — bu ay ${formatAZN(top.actual)}.`,
     materiality: top.actual,
     subject: top.category,
     meter: { value: share, label: 'ümumi xərcdəki payı' },
@@ -499,7 +478,7 @@ const unexpected: Rule = ({ data, month, health, add, skip }) => {
     id: 'unexpected',
     method: 'unexpected',
     priority: 'review',
-    fact: `Xərclərinizin ${percent(share)}-i planın kənarındadır — ${formatAZN(round2(beyond))}.`,
+    fact: `${formatAZN(round2(beyond))} planda nəzərdə tutulmamış xərcdir — bu ayın xərcinin ${percent(share)}-i.`,
     materiality: round2(beyond),
     meter: { value: share, label: 'plandan kənar hissə' },
   })
@@ -530,7 +509,7 @@ const recurringBurden: Rule = ({ data, month, health, add, skip }) => {
     id: 'recurring',
     method: 'recurring',
     priority: 'review',
-    fact: `Hər ay təkrarlanan ${recurring.length} planlaşdırılmış xərc gəlirinizin ${percent(share)}-ni tutur — ${formatAZN(total)}.`,
+    fact: `Gəlirinizin ${percent(share)}-i hər ay təkrarlanan öhdəliklərə bağlıdır — ${recurring.length} sətir, ${formatAZN(total)}. Sərbəst qalan hissə ${percent(1 - share)}-dir.`,
     materiality: total,
     meter: { value: Math.min(share, 1), label: 'gəlirdəki payı' },
   })
@@ -550,7 +529,7 @@ const zeroBased: Rule = ({ health, add, skip }) => {
       id: 'zero-based',
       method: 'zero-based',
       priority: 'good',
-      fact: `Planlaşdırılan gəlirin demək olar hamısının təyinatı var (fərq ${formatAZN(Math.abs(unallocated))}).`,
+      fact: `Planlaşdırdığınız gəlirin demək olar hamısının təyinatı var — yersiz qalan cəmi ${formatAZN(Math.abs(unallocated))}.`,
       materiality: Math.abs(unallocated),
     })
     return
@@ -562,11 +541,11 @@ const zeroBased: Rule = ({ health, add, skip }) => {
     priority: unallocated < 0 ? 'attention' : 'review',
     fact:
       unallocated < 0
-        ? `Planınız qazanmağı gözlədiyinizdən ${formatAZN(-unallocated)} çox xərcləyir.`
-        : `Planlaşdırılan gəlirin ${formatAZN(unallocated)}-i heç bir xərcə və ya məqsədə təyin edilməyib.`,
+        ? `Planınızın özü kəsirlidir: gözlədiyiniz gəlirdən ${formatAZN(-unallocated)} çox xərcləməyi nəzərdə tutur.`
+        : `Planlaşdırdığınız gəlirin ${formatAZN(unallocated)}-i planda heç bir yerə yazılmayıb — nə xərcə, nə yığıma.`,
     suggestion:
       unallocated > 0
-        ? 'Sıfır-baza yanaşmasında hər manatın təyinatı olur — bu məbləğ üçün də bir təyinat düşünməyə dəyər.'
+        ? 'Bu məbləğə bir ad vermək — yığım, gələcək xərc, nə olursa — onun harada qaldığını izləməyi asanlaşdırır.'
         : undefined,
     materiality: Math.abs(unallocated),
   })
@@ -592,16 +571,15 @@ const sinkingFunds: Rule = ({ data, month, add, skip }) => {
       id: `sinking-${line.id}`,
       method: 'sinking-fund',
       priority: 'review',
-      fact: `${line.description} — ${formatMonth(line.month)} üçün ${formatAZN(line.planned)} planlaşdırılıb (${away} ay sonra).`,
-      suggestion: `İndidən ayda ${formatAZN(perMonth)} ayırsanız, vaxtına yığılmış olar.`,
+      fact: `${away} ay sonra, ${formatMonth(line.month)} ayında ${formatAZN(line.planned)} lazım olacaq: ${line.description}.`,
+      suggestion: `Bu, ayda ${formatAZN(perMonth)} deməkdir. İndidən kənara qoysanız, həmin ay büdcənizə birdən düşməz.`,
       materiality: line.planned,
     })
   }
 }
 
 const RULES: Rule[] = [
-  spendingRatio,
-  retained,
+  overspent,
   retainedTrend,
   totalVariance,
   categoryVariance,

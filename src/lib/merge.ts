@@ -16,7 +16,7 @@
  * not seen yet, which is why it is stored rather than recomputed.
  */
 
-import type { FinanceData } from './types'
+import type { CategoryDef, FinanceData } from './types'
 
 export function mergeFinanceData(
   base: FinanceData,
@@ -27,8 +27,35 @@ export function mergeFinanceData(
     transactions: mergeRows(base.transactions, local.transactions, remote.transactions, (t) => t.id),
     budgetLines: mergeRows(base.budgetLines, local.budgetLines, remote.budgetLines, (l) => l.id),
     incomePlans: mergeRows(base.incomePlans, local.incomePlans, remote.incomePlans, (p) => p.month),
-    categories: mergeRows(base.categories, local.categories, remote.categories, (c) => c.id),
+    categories: dedupeCategories(
+      mergeRows(base.categories, local.categories, remote.categories, (c) => c.id),
+    ),
   }
+}
+
+/**
+ * Two ids, one category.
+ *
+ * A browser that has never synced holds the starting set it seeded for itself,
+ * with ids of its own making. An account that was used elsewhere first holds
+ * the same names under different ids. Merging by id alone keeps both, and the
+ * server rejects the pair outright — a category is unique per (user, type,
+ * name) there, which is the rule that makes a rename possible at all.
+ *
+ * So a duplicate by name is resolved in favour of the server's row. Nothing is
+ * lost by dropping the local one: every transaction, budget line and planned
+ * figure refers to a category by name, never by id.
+ */
+function dedupeCategories(categories: CategoryDef[]): CategoryDef[] {
+  const seen = new Set<string>()
+  // Merged order is the server's first, so the surviving id is the server's —
+  // the one every other device already agrees on.
+  return categories.filter((category) => {
+    const key = `${category.type}\u0000${category.name.trim().toLowerCase()}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 /**

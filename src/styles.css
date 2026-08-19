@@ -1763,6 +1763,20 @@ h1, h2, h3 {
 .framework-actual { font-size: 15px; font-weight: 650; letter-spacing: -0.02em; }
 .framework-meta { margin: 6px 0 0; font-size: 11px; color: var(--text-faint); }
 
+/* The plain-language reading: what the figures above mean, in a sentence.
+   Set apart from the note below it, which is the caveat rather than the point. */
+.reading {
+  margin: 16px 0 0;
+  padding: 12px 13px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.reading strong { color: var(--text); font-weight: 650; }
+
 .framework-note {
   margin: 16px 0 0;
   padding-top: 13px;

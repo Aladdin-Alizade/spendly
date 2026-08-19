@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import { hasPendingWork, mergeFinanceData, mergeRows } from '../merge'
 import { defaultCategories } from '../types'
-import type { FinanceData, Transaction } from '../types'
+import type { CategoryDef, FinanceData, Transaction } from '../types'
 
 const tx = (id: string, amount = 10, description = 'Test'): Transaction => ({
   id,
@@ -138,5 +138,57 @@ describe('hasPendingWork', () => {
 
   it('is something after an edit', () => {
     expect(hasPendingWork(data, { ...data, transactions: [tx('a', 12)] })).toBe(true)
+  })
+})
+
+describe('the same category under two ids', () => {
+  const category = (id: string, name: string): CategoryDef => ({
+    id,
+    name,
+    type: 'expense',
+  })
+
+  const data = (categories: CategoryDef[]): FinanceData => ({
+    transactions: [],
+    budgetLines: [],
+    incomePlans: [],
+    categories,
+  })
+
+  it('resolves it in favour of the server', () => {
+    // A browser that never synced seeded its own starting set; the account was
+    // used elsewhere first and holds the same names under other ids. Sending
+    // both is what the server rejects outright.
+    const merged = mergeFinanceData(
+      data([]),
+      data([category('cat-expense-0', 'Ərzaq')]),
+      data([category('uuid-1', 'Ərzaq')]),
+    )
+
+    expect(merged.categories).toHaveLength(1)
+    expect(merged.categories[0].id).toBe('uuid-1')
+  })
+
+  it('matches by name regardless of case or padding', () => {
+    const merged = mergeFinanceData(
+      data([]),
+      data([category('a', ' ərzaq ')]),
+      data([category('b', 'Ərzaq')]),
+    )
+    expect(merged.categories).toHaveLength(1)
+  })
+
+  it('leaves the same name on the other side of the ledger alone', () => {
+    // An expense and an income category may share a name; nothing looks a
+    // category up without its type.
+    const merged = mergeFinanceData(
+      data([]),
+      data([
+        { id: 'a', name: 'Bonus', type: 'expense' },
+        { id: 'b', name: 'Bonus', type: 'income' },
+      ]),
+      data([]),
+    )
+    expect(merged.categories).toHaveLength(2)
   })
 })

@@ -206,3 +206,77 @@ export function emergencyFund(
     sampleMonths: history.length,
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * The figures behind the plain-language readings
+ * ------------------------------------------------------------------ */
+
+export interface Rigidity {
+  /** Share of spending that is essential or debt — the part that cannot be
+   *  dropped next month by deciding to. */
+  rigidShare: number
+  /** What is left: the discretionary spending, in manat. */
+  flexible: number
+}
+
+/**
+ * How much room the month actually has.
+ *
+ * A budget where nearly everything is rent, food and repayments is not worse
+ * than one that is not — it simply has less give in it, and that is the thing
+ * a percentage on its own never says.
+ */
+export function spendingRigidity(split: SpendingSplit): Rigidity | null {
+  if (!hasCoverage(split)) return null
+  return {
+    rigidShare: (split.essential + split.debt) / split.total,
+    flexible: split.discretionary,
+  }
+}
+
+export interface FundPace {
+  /** Income minus everything spent, this month. */
+  retainedMonthly: number
+  /** What was deliberately put into a saving category. */
+  savingMonthly: number
+  /** Months to the target at the retained rate. Null when nothing is retained. */
+  monthsAtRetained: number | null
+  /** Months to the target at the deliberate-saving rate. */
+  monthsAtSaving: number | null
+}
+
+/**
+ * How long the target takes, at two different rates.
+ *
+ * The gap between them is the whole point. Money retained is money that was
+ * not spent, which is not the same as money put away — and the difference
+ * between "seven months" and "three years" is what makes that concrete.
+ */
+export function fundPace(
+  data: FinanceData,
+  month: MonthKey,
+  target: number,
+): FundPace | null {
+  const split = classifySpending(data, month)
+  const income = actualIncome(data.transactions, month)
+  if (income <= 0 || target <= 0) return null
+
+  const retainedMonthly = round2(income - split.total)
+  const savingMonthly = split.saving
+
+  return {
+    retainedMonthly,
+    savingMonthly,
+    monthsAtRetained: retainedMonthly > 0 ? target / retainedMonthly : null,
+    monthsAtSaving: savingMonthly > 0 ? target / savingMonthly : null,
+  }
+}
+
+/** Distance from each reference share, in percentage points. */
+export function frameworkGaps(framework: FrameworkSplit) {
+  return {
+    needs: (framework.needsShare - REFERENCE_50_30_20.needs) * 100,
+    wants: (framework.wantsShare - REFERENCE_50_30_20.wants) * 100,
+    savings: (framework.savingsShare - REFERENCE_50_30_20.savings) * 100,
+  }
+}

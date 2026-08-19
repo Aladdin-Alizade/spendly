@@ -16,10 +16,14 @@ import {
   classifySpending,
   emergencyFund,
   fiftyThirtyTwenty,
+  frameworkGaps,
+  fundPace,
   hasCoverage,
+  spendingRigidity,
 } from '../lib/insights/classification'
 import { formatAZN, formatSignedAZN } from '../lib/money'
 import { formatMonth, today } from '../lib/dates'
+import type { FrameworkSplit } from '../lib/insights/classification'
 import type { FinanceData, MonthKey } from '../lib/types'
 
 /**
@@ -40,6 +44,11 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
   const fund = useMemo(
     () => emergencyFund(data, month, fundMonths),
     [data, month, fundMonths],
+  )
+  const rigidity = useMemo(() => spendingRigidity(split), [split])
+  const pace = useMemo(
+    () => (fund ? fundPace(data, month, fund.target) : null),
+    [data, month, fund],
   )
   const stale = useMemo(() => methodsNeedingReview(asOf), [asOf])
 
@@ -191,6 +200,15 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
                   ) : null,
                 )}
               </div>
+              {rigidity && (
+                <p className="reading">
+                  Xərcinizin <strong>{Math.round(rigidity.rigidShare * 100)}%-i</strong>{' '}
+                  kirayə, ərzaq, kommunal və borc kimi asanlıqla kəsilməyən
+                  şeylərdir. Gəliriniz azalsa, rahat azalda biləcəyiniz hissə{' '}
+                  <strong>{formatAZN(rigidity.flexible)}</strong> — istəyə bağlı olan
+                  bu qədərdir.
+                </p>
+              )}
               <p className="framework-note">
                 Bu bölgü mühakimə deyil — hansı kateqoriyanın zəruri olduğunu siz
                 təyin edirsiniz.
@@ -230,6 +248,7 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
                 reference={REFERENCE_50_30_20.savings}
                 amount={framework.savings}
               />
+              <FrameworkReading framework={framework} />
               <p className="framework-note">
                 CFPB bunu bir neçə büdcə qaydasından biri kimi öyrədir — hamıya
                 uyğun gəlmir. Borc ödənişləri «zəruri» tərəfdə sayılır.
@@ -279,6 +298,29 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
                 <span className="fund-target-value num">{formatAZN(fund.target)}</span>
               </div>
 
+              {pace && (
+                <p className="reading">
+                  Gəliriniz dayansa, bu məbləğ təxminən{' '}
+                  <strong>{fund.months} ay</strong> əsas xərclərinizi qarşılayar.
+                  {pace.monthsAtRetained !== null && (
+                    <>
+                      {' '}Bu ay qalan{' '}
+                      <strong>{formatAZN(pace.retainedMonthly)}</strong> hər ay
+                      qalsa, hədəfə{' '}
+                      <strong>{pace.monthsAtRetained.toFixed(1)} ayda</strong>{' '}
+                      çatarsınız.
+                    </>
+                  )}
+                  {pace.monthsAtSaving !== null && (
+                    <>
+                      {' '}Yalnız yığıma qoyduğunuz{' '}
+                      {formatAZN(pace.savingMonthly)} ilə isə{' '}
+                      {Math.round(pace.monthsAtSaving)} ay çəkər — «qalan» ilə
+                      «yığılan» arasındakı fərq budur.
+                    </>
+                  )}
+                </p>
+              )}
               <p className="framework-note">
                 CFPB vahid rəqəm vermir — məbləğ vəziyyətinizdən asılıdır. Tətbiq
                 hesab qalığınızı görmür, ona görə hədəfə nə qədər yaxın
@@ -444,6 +486,52 @@ function Missing({
       )}
       {extra && <p className="missing-list">{extra}</p>}
     </div>
+  )
+}
+
+/**
+ * What matching, or missing, the reference actually means.
+ *
+ * The three percentages on their own leave the reader to work out whether
+ * being over on one and under on another is good or bad. It is arithmetic, so
+ * the screen can say it: the framework is a means, and the share retained is
+ * the end it is aiming at.
+ */
+function FrameworkReading({ framework }: { framework: FrameworkSplit }) {
+  const gaps = frameworkGaps(framework)
+  const rounded = {
+    needs: Math.round(gaps.needs),
+    wants: Math.round(gaps.wants),
+    savings: Math.round(gaps.savings),
+  }
+
+  return (
+    <p className="reading">
+      {rounded.needs > 0 ? (
+        <>
+          Zəruri xərcləriniz istinaddan <strong>{rounded.needs} bənd yuxarıdır</strong>
+          {rounded.savings >= 0 ? (
+            <>
+              , amma buna baxmayaraq gəlirinizin{' '}
+              <strong>{Math.round(framework.savingsShare * 100)}%-i qalır</strong> —
+              istinadın gözlədiyi 20%-dən çox. Yəni sabit xərclərinizin böyüklüyünü
+              istəyə bağlı xərcləri aşağı saxlamaqla bağlayırsınız.
+            </>
+          ) : (
+            <>
+              , və qalan pay da istinaddan aşağıdır. Sabit xərclər gəlirin böyük
+              hissəsini tutduğu üçün yığıma az yer qalır.
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          Üç payın da istinada yaxındır. Gəlirinizin{' '}
+          <strong>{Math.round(framework.savingsShare * 100)}%-i</strong> xərclənmədən
+          qalır.
+        </>
+      )}
+    </p>
   )
 }
 

@@ -145,14 +145,17 @@ describe('variance', () => {
     expect(found).not.toContain('retained')
   })
 
-  it('does raise them when the month does not pay for itself', () => {
+  it('does raise it when the month does not pay for itself', () => {
     const data = build({
       transactions: [income(M, 100), spend(M, 'Ərzaq', 400)],
     })
     const report = budgetAdvice(data, M, TODAY)
-    expect(report.attention.map((a) => a.id)).toEqual(
-      expect.arrayContaining(['spending-ratio', 'retained']),
-    )
+    const overspent = report.attention.find((a) => a.id === 'overspent')
+
+    // One card, not two: the ratio and the shortfall are the same fact.
+    expect(overspent).toBeDefined()
+    expect(overspent?.fact).toContain('300.00 ₼')
+    expect(report.attention.filter((a) => a.method === 'spending-ratio')).toHaveLength(1)
   })
 })
 
@@ -346,11 +349,12 @@ describe('language', () => {
       incomePlans: [{ month: M, amounts: { 'Maaş': 1000 } }],
     })
 
+    // The rule is that nothing instructs — not that every suggestion uses one
+    // of a handful of approved words, which only constrained the wording.
+    const commanding = /məcbur|mütləq|etməlisiniz|olmalısınız|azaltmalı|kəsməlisiniz/i
     for (const advice of all(budgetAdvice(data, M, TODAY))) {
-      expect(advice.fact).not.toMatch(/məcbur|mütləq|etməlisiniz|olmalısınız/i)
-      if (advice.suggestion) {
-        expect(advice.suggestion).toMatch(/dəyər|düşünməyə|yoxlamağa|keçirməyə/i)
-      }
+      expect(advice.fact, advice.id).not.toMatch(commanding)
+      if (advice.suggestion) expect(advice.suggestion, advice.id).not.toMatch(commanding)
     }
   })
 })
@@ -395,9 +399,9 @@ describe('signed rates', () => {
     })
 
     const advice = all(budgetAdvice(data, M, TODAY)).find((a) => a.id === 'retained-trend')
+    // Both sides keep their sign, so the two figures cannot read as identical.
     expect(advice?.fact).toContain('-20%')
-    // Points, not per cent: "32% faiz bəndi" says percentage twice.
-    expect(advice?.fact).toMatch(/\d+ faiz bəndi/)
-    expect(advice?.fact).not.toMatch(/%\s*faiz bəndi/)
+    expect(advice?.fact).toContain('20%')
+    expect(advice?.fact).toMatch(/daha azını saxladınız/)
   })
 })
