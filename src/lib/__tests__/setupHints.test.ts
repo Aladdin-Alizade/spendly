@@ -31,6 +31,13 @@ describe('setupHint', () => {
       setupHint("Could not find the 'amounts' column of 'income_plans' in the schema cache"),
     ).toBe(hint)
     expect(setupHint('PGRST204')).toBe(hint)
+
+    // An upsert naming (user_id, id) against a table still keyed on the id
+    // alone. Same cause, same fix, and the raw message names neither.
+    expect(
+      setupHint('there is no unique or exclusion constraint matching the ON CONFLICT specification'),
+    ).toBe(hint)
+    expect(setupHint('42P10')).toBe(hint)
   })
 
   it('asks for a first-time setup when the table itself is missing', () => {
