@@ -6,7 +6,9 @@ import {
   validateCategoryName,
 } from '../lib/categories'
 import { useFinance } from '../store/FinanceProvider'
-import type { CategoryDef, TransactionType } from '../lib/types'
+import { CATEGORY_KINDS } from '../lib/types'
+import { KIND_LABEL } from '../lib/insights/classification'
+import type { CategoryDef, CategoryKind, TransactionType } from '../lib/types'
 
 /**
  * Create, rename or remove one category.
@@ -28,21 +30,22 @@ export function CategoryDialog({
   type: TransactionType
   onClose: () => void
 }) {
-  const { data, addCategory, renameCategory, removeCategory } = useFinance()
+  const { data, addCategory, renameCategory, removeCategory, setCategoryKind } = useFinance()
   const [name, setName] = useState(category?.name ?? '')
+  const [kind, setKind] = useState<CategoryKind | undefined>(category?.kind)
   const [showErrors, setShowErrors] = useState(false)
   const [removing, setRemoving] = useState(false)
 
-  const kind = category?.type ?? type
+  const kindOfCategory = category?.type ?? type
   const usage = category ? categoryUsage(data, category.name) : null
   const inUse = usage !== null && isCategoryInUse(usage)
 
-  const alternatives = categoriesOfType(data, kind).filter(
+  const alternatives = categoriesOfType(data, kindOfCategory).filter(
     (option) => option.id !== category?.id,
   )
   const [reassignTo, setReassignTo] = useState(alternatives[0]?.name ?? '')
 
-  const error = validateCategoryName(data, name, kind, category?.id)
+  const error = validateCategoryName(data, name, kindOfCategory, category?.id)
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -60,8 +63,9 @@ export function CategoryDialog({
     }
     if (category) {
       renameCategory(category.id, name)
+      if (kind !== category.kind) setCategoryKind(category.id, kind)
     } else {
-      addCategory(name.trim(), kind)
+      addCategory(name.trim(), kindOfCategory, kind)
     }
     onClose()
   }
@@ -90,7 +94,7 @@ export function CategoryDialog({
               {category ? 'Kateqoriyanı dəyiş' : 'Yeni kateqoriya'}
             </h2>
             <p className="dialog-subtitle">
-              {kind === 'income' ? 'Gəlir' : 'Xərc'}
+              {kindOfCategory === 'income' ? 'Gəlir' : 'Xərc'}
             </p>
           </div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Bağla">
@@ -161,6 +165,35 @@ export function CategoryDialog({
               />
               {showErrors && error && <p className="field-error">{error}</p>}
             </div>
+
+            {kindOfCategory === 'expense' && (
+              <div className="field">
+                <label className="field-label" htmlFor="cat-kind">
+                  Növü
+                </label>
+                <div className="select-wrap">
+                  <select
+                    id="cat-kind"
+                    className="select"
+                    value={kind ?? ''}
+                    onChange={(event) =>
+                      setKind((event.target.value || undefined) as CategoryKind | undefined)
+                    }
+                  >
+                    <option value="">Təsnif edilməyib</option>
+                    {CATEGORY_KINDS.map((option) => (
+                      <option key={option} value={option}>
+                        {KIND_LABEL[option]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="field-hint">
+                  Ehtiyac/istək bölgüsü, 50/30/20 və təcili fond hesablamaları
+                  bundan istifadə edir. Boş qalsa, həmin bölmələr bunu bildirir.
+                </p>
+              </div>
+            )}
 
             {inUse && (
               <p className="field-note">

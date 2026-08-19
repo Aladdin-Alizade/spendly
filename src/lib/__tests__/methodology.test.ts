@@ -25,11 +25,21 @@ describe('methodology register', () => {
     expect(Object.values(METHODS).some((m) => m.origin === 'app')).toBe(true)
   })
 
-  it("only claims an external source when there is one", () => {
+  it('only claims an external source when there is one', () => {
     for (const [id, method] of Object.entries(METHODS)) {
       if (method.origin === 'app') expect(method.url, id).toBeNull()
+      // A printed source can be authoritative without a free canonical URL —
+      // the citation still has to be complete enough to look up.
+      else if (method.url === null) expect(method.source, id).toMatch(/\(\d{4}\)/)
       else expect(method.url, id).toMatch(/^https:\/\//)
     }
+  })
+
+  it('cites the frameworks the classification rules depend on', () => {
+    expect(METHODS['framework-50-30-20'].url).toContain('consumerfinance.gov')
+    expect(METHODS['emergency-fund'].url).toContain('consumerfinance.gov')
+    expect(METHODS['needs-wants'].url).toContain('consumerfinance.gov')
+    expect(METHODS['money-principles'].url).toContain('mymoney.gov')
   })
 })
 

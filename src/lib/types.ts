@@ -55,10 +55,38 @@ export const INCOME_CATEGORIES = ['Maaş', 'Əlavə gəlir'] as const
  * record rather than a new category, and so the name can change without the
  * history losing track of which category it was.
  */
+/**
+ * What a category is *for*, which is what the needs/wants frameworks measure.
+ *
+ * Deliberately optional. Nothing guesses it: an unclassified category stays
+ * unclassified, and every analysis that depends on this reports how much of
+ * the spending it could account for rather than quietly excluding the rest.
+ *
+ *   essential      — the household would struggle without it
+ *   discretionary  — chosen rather than required
+ *   debt           — a repayment on money already borrowed
+ *   saving         — money set aside rather than consumed
+ */
+export type CategoryKind = 'essential' | 'discretionary' | 'debt' | 'saving'
+
+export const CATEGORY_KINDS: CategoryKind[] = [
+  'essential',
+  'discretionary',
+  'debt',
+  'saving',
+]
+
 export interface CategoryDef {
   id: string
   name: string
   type: TransactionType
+  /** Unset means unclassified, and the analyses say so. */
+  kind?: CategoryKind
+}
+
+/** True for a value that is one of the four kinds, for reading stored data. */
+export function isCategoryKind(value: unknown): value is CategoryKind {
+  return typeof value === 'string' && (CATEGORY_KINDS as string[]).includes(value)
 }
 
 /**

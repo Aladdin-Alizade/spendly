@@ -1,8 +1,7 @@
 # Financial intelligence layer — research and proposal
 
-Status: **the no-schema-change half is implemented** and lives on the
-Məsləhətlər screen. The three rules that need a category classification
-(needs vs wants, 50/30/20, emergency fund) are still proposals.
+Status: **implemented**, on the Məsləhətlər screen. Everything in §2.1 and
+§2.2 is built; §2.3 remains deliberately unbuilt, for the reasons given there.
 
 This document is the research summary and the implementation plan. It exists
 before the code so the methodology can be argued with before it is encoded.
@@ -62,7 +61,8 @@ These absences decide most of what follows.
 | **Emergency fund target** | `essential monthly expenses × N months`, N chosen by the user | [CFPB emergency fund guide](https://www.consumerfinance.gov/an-essential-guide-to-building-an-emergency-fund/) — *"The amount you need … depends on your situation"*; context from [Federal Reserve SHED](https://www.federalreserve.gov/publications/2026-economic-well-being-of-us-households-in-2025-savings-investments.htm) | category classification |
 
 **The one field:** `CategoryDef.kind` — `essential | discretionary | debt | saving`,
-unset by default.
+unset by default. **Built**, and set from the category dialog on the Büdcə
+screen.
 
 That single addition unlocks all three. Nothing is guessed: a category with no
 `kind` stays unclassified, and every analysis above reports its **coverage**

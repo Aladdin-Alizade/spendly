@@ -10,7 +10,12 @@
  */
 
 import { supabase, currentUserId } from './supabase'
-import { defaultCategories, migrateCategory, migrateIncomePlan } from './types'
+import {
+  defaultCategories,
+  isCategoryKind,
+  migrateCategory,
+  migrateIncomePlan,
+} from './types'
 import { emptyData } from './storage'
 import type { FinanceRepository } from './storage'
 import type {
@@ -127,6 +132,7 @@ export class SupabaseRepository implements FinanceRepository {
       user_id: userId,
       name: c.name,
       type: c.type,
+      kind: c.kind ?? null,
     }))
     if (categoryChanged.upserts.length) {
       jobs.push(client.from('categories').upsert(categoryChanged.upserts))
@@ -249,6 +255,7 @@ function toCategory(row: Row): CategoryDef {
     id: String(row.id),
     name: migrateCategory(String(row.name)),
     type: row.type === 'income' ? 'income' : 'expense',
+    kind: isCategoryKind(row.kind) ? row.kind : undefined,
   }
 }
 

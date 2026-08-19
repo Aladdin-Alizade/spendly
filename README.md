@@ -82,6 +82,16 @@ Every sentence is produced by a rule that either fires or does not; nothing is
 generated. A rule with too little data behind it stays silent and says what it
 is missing under **Hələ hesablana bilməyənlər**.
 
+Three panels need to know what your spending is *for*: **Ehtiyac və istək**,
+**50/30/20 çərçivəsi** and **Təcili ehtiyat fondu**. Give each category a type
+in **Büdcə → Kateqoriyalar** (zəruri, istəyə bağlı, borc ödənişi, yığım) and
+they fill in. Until 90% of a month's spending is classified they stay blank and
+name the categories still missing — nothing is guessed.
+
+The emergency-fund figure is a **target only**. The app never sees an account
+balance, so it cannot tell you how far along you are, and the number of months
+is yours to choose — the CFPB deliberately publishes no universal figure.
+
 **Metodologiya** at the foot lists every reference used, its source, whether it
 is a US or international one, and the date it was last checked. This is
 budgeting arithmetic and educational reference material, not financial advice.
@@ -114,6 +124,7 @@ What the month is *supposed* to look like:
 | Add a category | **Büdcə** → **Kateqoriyalar** → **+ Kateqoriya əlavə et** |
 | Rename a category | Tap it in **Kateqoriyalar**, type the new name, save |
 | Delete a category | Tap it → **Sil** |
+| Classify a category | Tap it → **Növü** (needed by the 50/30/20 and needs-vs-wants panels) |
 | Wipe one month's plan | **Büdcə** → **Silmə** → **Planı sil** → **Təsdiqlə** |
 | Wipe everything | **Büdcə** → **Silmə** → **Bütün məlumatları sil** |
 | See my account | The round button at the top right |
@@ -154,8 +165,8 @@ and a backup. Copy `.env.example` to `.env`, fill in your project URL and
 publishable key, then do two things in the Supabase dashboard:
 
 1. **Create the tables** — paste [`supabase/schema.sql`](supabase/schema.sql)
-   into the SQL editor and run it. Running it again later is safe; that is how
-   you pick up changes.
+   into the SQL editor and run it. Running it again later is safe, and is how
+   you pick up changes — the `categories.kind` column is the most recent.
 2. **Turn on the Email provider** — Authentication → Sign In / Providers.
 
 Until both are done the app tells you which step is missing instead of showing
@@ -201,7 +212,7 @@ across.
 ## Development
 
 ```bash
-npm test         # 190 tests
+npm test         # 204 tests
 npm run build
 ```
 

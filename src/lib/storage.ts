@@ -9,7 +9,12 @@
  */
 
 import { seedData } from './seed'
-import { defaultCategories, migrateCategory, migrateIncomePlan } from './types'
+import {
+  defaultCategories,
+  isCategoryKind,
+  migrateCategory,
+  migrateIncomePlan,
+} from './types'
 import type {
   BudgetLine,
   Category,
@@ -86,6 +91,8 @@ export function normaliseData(value: unknown): FinanceData {
         ? data.categories.map((category: CategoryDef) => ({
             ...category,
             name: migrateCategory(category.name),
+            // An unrecognised kind is dropped rather than trusted.
+            kind: isCategoryKind(category.kind) ? category.kind : undefined,
           }))
         : defaultCategories(),
   }

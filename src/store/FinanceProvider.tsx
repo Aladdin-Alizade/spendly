@@ -17,9 +17,11 @@ import {
   addCategory as addCategoryTo,
   removeCategory as removeCategoryFrom,
   renameCategory as renameCategoryIn,
+  setCategoryKind as setCategoryKindIn,
 } from '../lib/categories'
 import type {
   BudgetLine,
+  CategoryKind,
   FinanceData,
   MonthKey,
   Transaction,
@@ -52,7 +54,9 @@ interface FinanceContextValue {
   /** Remove every planned line for one month, leaving its transactions alone. */
   clearMonthPlan(month: MonthKey): void
   setIncomePlan(month: MonthKey, amounts: Record<string, number>): void
-  addCategory(name: string, type: TransactionType): void
+  addCategory(name: string, type: TransactionType, kind?: CategoryKind): void
+  /** Set or clear what a category is for. Touches no amount. */
+  setCategoryKind(id: string, kind: CategoryKind | undefined): void
   /** Renames the category and everything that referenced it, in one change. */
   renameCategory(id: string, name: string): void
   /** `reassignTo` is the category anything still using this one moves to. A
@@ -275,10 +279,14 @@ export function FinanceProvider({
         })
       },
 
-      addCategory(name, type) {
+      addCategory(name, type, kind) {
         commit((previous) =>
-          addCategoryTo(previous, { id: nextId(), name, type }),
+          addCategoryTo(previous, { id: nextId(), name, type, kind }),
         )
+      },
+
+      setCategoryKind(id, kind) {
+        commit((previous) => setCategoryKindIn(previous, id, kind))
       },
 
       renameCategory(id, name) {

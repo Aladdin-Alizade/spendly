@@ -1722,6 +1722,104 @@ h1, h2, h3 {
   }
 }
 
+/* --- needs vs wants, frameworks, emergency fund ----------------------------- */
+
+.kinds { margin-bottom: 16px; }
+
+.kind-essential { background: linear-gradient(90deg, var(--s1), var(--s5)); }
+.kind-debt { background: var(--s3); }
+.kind-discretionary { background: var(--s4); }
+.kind-saving { background: var(--s2); }
+
+.kind-swatch-essential { background: var(--s1); }
+.kind-swatch-debt { background: var(--s3); }
+.kind-swatch-discretionary { background: var(--s4); }
+.kind-swatch-saving { background: var(--s2); }
+
+.kind-legend { display: flex; flex-direction: column; gap: 9px; }
+
+.kind-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.kind-name { font-size: 12.5px; color: var(--text-muted); }
+.kind-amount { font-size: 12.5px; font-weight: 650; }
+.kind-share { font-size: 11.5px; color: var(--text-faint); min-width: 30px; text-align: right; }
+
+.framework-row + .framework-row { margin-top: 16px; }
+
+.framework-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+
+.framework-label { font-size: 12.5px; color: var(--text-muted); }
+.framework-actual { font-size: 15px; font-weight: 650; letter-spacing: -0.02em; }
+.framework-meta { margin: 6px 0 0; font-size: 11px; color: var(--text-faint); }
+
+.framework-note {
+  margin: 16px 0 0;
+  padding-top: 13px;
+  border-top: 1px solid var(--border);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-faint);
+}
+
+.fund-value {
+  margin: 7px 0 0;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+
+.fund-note { margin: 4px 0 0; font-size: 11.5px; color: var(--text-faint); }
+
+.fund-months {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  margin: 16px 0;
+}
+
+.fund-months .period-option { flex: 1; text-align: center; }
+
+.fund-target {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+}
+
+.fund-target-value { font-size: 18px; font-weight: 650; letter-spacing: -0.02em; }
+
+.missing { display: flex; flex-direction: column; gap: 8px; }
+
+.missing-lead { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text-muted); }
+.missing-list { margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--text-faint); }
+
+.missing-how {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
 /* --- account + profile ------------------------------------------------------ */
 
 .account-button {

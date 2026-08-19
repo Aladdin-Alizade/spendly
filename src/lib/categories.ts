@@ -12,6 +12,7 @@
 
 import type {
   CategoryDef,
+  CategoryKind,
   FinanceData,
   IncomePlan,
   TransactionType,
@@ -126,6 +127,26 @@ export function addCategory(
  * Rename the category and everything that names it, in one step. Nothing here
  * touches an amount, so every total the app reports is unchanged by a rename.
  */
+/**
+ * Set or clear what a category is for.
+ *
+ * Only the definition moves. No transaction, budget line or planned figure is
+ * touched, so classifying a category cannot change a single total the app
+ * reports — it only decides which frameworks can read it.
+ */
+export function setCategoryKind(
+  data: FinanceData,
+  id: string,
+  kind: CategoryKind | undefined,
+): FinanceData {
+  return {
+    ...data,
+    categories: data.categories.map((category) =>
+      category.id === id ? { ...category, kind } : category,
+    ),
+  }
+}
+
 export function renameCategory(
   data: FinanceData,
   id: string,

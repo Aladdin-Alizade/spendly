@@ -9,6 +9,15 @@ import {
   methodsNeedingReview,
   needsReview,
 } from '../lib/insights/methodology'
+import {
+  CLASSIFICATION_COVERAGE_MIN,
+  KIND_LABEL,
+  REFERENCE_50_30_20,
+  classifySpending,
+  emergencyFund,
+  fiftyThirtyTwenty,
+  hasCoverage,
+} from '../lib/insights/classification'
 import { formatAZN, formatSignedAZN } from '../lib/money'
 import { formatMonth, today } from '../lib/dates'
 import type { FinanceData, MonthKey } from '../lib/types'
@@ -25,6 +34,13 @@ import type { FinanceData, MonthKey } from '../lib/types'
 export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) {
   const asOf = today()
   const report = useMemo(() => budgetAdvice(data, month, asOf), [data, month, asOf])
+  const split = useMemo(() => classifySpending(data, month), [data, month])
+  const framework = useMemo(() => fiftyThirtyTwenty(data, month), [data, month])
+  const [fundMonths, setFundMonths] = useState(3)
+  const fund = useMemo(
+    () => emergencyFund(data, month, fundMonths),
+    [data, month, fundMonths],
+  )
   const stale = useMemo(() => methodsNeedingReview(asOf), [asOf])
 
   const { health } = report
@@ -135,6 +151,151 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
         />
 
         {/* --------------------------------------------------------- *
+            Needs vs wants, and the frameworks that read them
+         * --------------------------------------------------------- */}
+        <Panel
+          title="Ehtiyac və istək"
+          span={4}
+          note={
+            split.total > 0 ? (
+              <span className="panel-note">
+                {Math.round(split.coverage * 100)}% təsnif edilib
+              </span>
+            ) : undefined
+          }
+        >
+          {hasCoverage(split) ? (
+            <>
+              <div className="split-bar kinds">
+                {(['essential', 'debt', 'discretionary', 'saving'] as const).map((kind) =>
+                  split[kind] > 0 ? (
+                    <span
+                      key={kind}
+                      className={`kind-${kind}`}
+                      style={{ width: `${(split[kind] / split.total) * 100}%` }}
+                    />
+                  ) : null,
+                )}
+              </div>
+              <div className="kind-legend">
+                {(['essential', 'discretionary', 'debt', 'saving'] as const).map((kind) =>
+                  split[kind] > 0 ? (
+                    <div className="kind-row" key={kind}>
+                      <span className={`swatch kind-swatch-${kind}`} />
+                      <span className="kind-name">{KIND_LABEL[kind]}</span>
+                      <span className="kind-amount num">{formatAZN(split[kind])}</span>
+                      <span className="kind-share num">
+                        {Math.round((split[kind] / split.total) * 100)}%
+                      </span>
+                    </div>
+                  ) : null,
+                )}
+              </div>
+              <p className="framework-note">
+                Bu bölgü mühakimə deyil — hansı kateqoriyanın zəruri olduğunu siz
+                təyin edirsiniz.
+              </p>
+            </>
+          ) : (
+            <Missing
+              total={split.total}
+              coverage={split.coverage}
+              missing={split.missing}
+            />
+          )}
+        </Panel>
+
+        <Panel
+          title="50/30/20 çərçivəsi"
+          span={4}
+          note={<span className="panel-note">istinad — qayda deyil</span>}
+        >
+          {framework ? (
+            <>
+              <FrameworkRow
+                label="Zəruri (ehtiyac + borc)"
+                actual={framework.needsShare}
+                reference={REFERENCE_50_30_20.needs}
+                amount={framework.needs}
+              />
+              <FrameworkRow
+                label="İstəyə bağlı"
+                actual={framework.wantsShare}
+                reference={REFERENCE_50_30_20.wants}
+                amount={framework.wants}
+              />
+              <FrameworkRow
+                label="Yığım və qalan"
+                actual={framework.savingsShare}
+                reference={REFERENCE_50_30_20.savings}
+                amount={framework.savings}
+              />
+              <p className="framework-note">
+                CFPB bunu bir neçə büdcə qaydasından biri kimi öyrədir — hamıya
+                uyğun gəlmir. Borc ödənişləri «zəruri» tərəfdə sayılır.
+              </p>
+            </>
+          ) : (
+            <Missing
+              total={split.total}
+              coverage={split.coverage}
+              missing={split.missing}
+              extra={
+                split.total > 0 && hasCoverage(split)
+                  ? 'Bu ay gəlir qeyd edilməyib.'
+                  : undefined
+              }
+            />
+          )}
+        </Panel>
+
+        <Panel
+          title="Təcili ehtiyat fondu"
+          span={4}
+          note={<span className="panel-note">yalnız hədəf</span>}
+        >
+          {fund ? (
+            <>
+              <p className="micro">Zəruri aylıq xərc (median)</p>
+              <p className="fund-value num">{formatAZN(fund.essentialMonthly)}</p>
+              <p className="fund-note">{fund.sampleMonths} aylıq məlumat əsasında</p>
+
+              <div className="fund-months" role="group" aria-label="Ay sayı">
+                {[3, 6, 12].map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className="period-option"
+                    aria-pressed={fundMonths === option}
+                    onClick={() => setFundMonths(option)}
+                  >
+                    {option} ay
+                  </button>
+                ))}
+              </div>
+
+              <div className="fund-target">
+                <span className="micro">Hədəf</span>
+                <span className="fund-target-value num">{formatAZN(fund.target)}</span>
+              </div>
+
+              <p className="framework-note">
+                CFPB vahid rəqəm vermir — məbləğ vəziyyətinizdən asılıdır. Tətbiq
+                hesab qalığınızı görmür, ona görə hədəfə nə qədər yaxın
+                olduğunuzu deyə bilmir.
+              </p>
+            </>
+          ) : (
+            <Missing
+              total={split.total}
+              coverage={split.coverage}
+              missing={split.missing}
+              extra="Hesablama üçün ən azı 3 ayın təsnif edilmiş xərci lazımdır."
+            />
+          )}
+        </Panel>
+
+        {/* --------------------------------------------------------- *
             What could not be said, and why
          * --------------------------------------------------------- */}
         {report.unavailable.length > 0 && (
@@ -233,6 +394,79 @@ function Bucket({
         </div>
       )}
     </Panel>
+  )
+}
+
+/**
+ * Why a framework has nothing to show.
+ *
+ * Naming the categories still unclassified turns a dead end into the next
+ * step, which is the difference between a blocked screen and an instruction.
+ */
+function Missing({
+  total,
+  coverage,
+  missing,
+  extra,
+}: {
+  total: number
+  coverage: number
+  missing: string[]
+  extra?: string
+}) {
+  if (total <= 0) {
+    return <p className="advice-empty">Bu ay xərc qeyd edilməyib.</p>
+  }
+
+  return (
+    <div className="missing">
+      <p className="missing-lead">
+        Xərcin {Math.round(coverage * 100)}%-i təsnif edilib. Bu hesablama üçün ən
+        azı {Math.round(CLASSIFICATION_COVERAGE_MIN * 100)}% lazımdır.
+      </p>
+      {missing.length > 0 && (
+        <p className="missing-list">
+          Təsnif edilməyən: {missing.slice(0, 5).join(', ')}
+          {missing.length > 5 && ` və daha ${missing.length - 5}`}
+        </p>
+      )}
+      <p className="missing-how">
+        Büdcə → Kateqoriyalar bölməsində hər kateqoriyaya növ təyin edin.
+      </p>
+      {extra && <p className="missing-list">{extra}</p>}
+    </div>
+  )
+}
+
+/** One line of the reference comparison: what you did, against the reference. */
+function FrameworkRow({
+  label,
+  actual,
+  reference,
+  amount,
+}: {
+  label: string
+  actual: number
+  reference: number
+  amount: number
+}) {
+  return (
+    <div className="framework-row">
+      <div className="framework-head">
+        <span className="framework-label">{label}</span>
+        <span className="framework-actual num">{Math.round(actual * 100)}%</span>
+      </div>
+      <div className="bar-track">
+        <span
+          className="bar-fill bar-fill-out"
+          style={{ width: `${Math.min(Math.max(actual, 0), 1) * 100}%` }}
+        />
+        <span className="bar-mark" style={{ left: `${reference * 100}%` }} />
+      </div>
+      <p className="framework-meta">
+        {formatAZN(amount)} · istinad {Math.round(reference * 100)}%
+      </p>
+    </div>
   )
 }
 
