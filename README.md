@@ -128,6 +128,7 @@ What the month is *supposed* to look like:
 | Wipe one month's plan | **Büdcə** → **Silmə** → **Planı sil** → **Təsdiqlə** |
 | Wipe everything | **Büdcə** → **Silmə** → **Bütün məlumatları sil** |
 | Change your password | The profile button → **Şifrə** → **Dəyiş** |
+| Reset a forgotten password | **Şifrənizi unutmusunuz?** on the sign-in screen |
 | See my account | The round button at the top right |
 | Sign out | The same button → **Çıxış** |
 
@@ -187,6 +188,23 @@ If Supabase is set to confirm email addresses (the default), the app tells you
 to open the confirmation link before your first sign-in. For a personal tool
 you can turn confirmation off under Authentication → Sign In / Providers →
 Email.
+
+### If you forget the password
+
+**Şifrənizi unutmusunuz?** on the sign-in screen emails a link. Opening it
+brings you back here with one screen: set the new password. The confirmation is
+the same whether or not the address has an account — an app that says "no such
+user" is an app that will tell anyone which addresses are registered.
+
+For the link to come back to the app, its address has to be listed in the
+Supabase dashboard under **Authentication → URL Configuration** (Site URL, and
+the app's own origin under Redirect URLs).
+
+**Mind the mail quota.** Supabase's built-in mail service sends only a handful
+of messages an hour, and sign-up confirmations and reset links share it. If it
+refuses, the app now says so in those terms rather than blaming the attempt.
+Connect your own SMTP under **Project Settings → Authentication → SMTP** to
+lift it.
 
 ### Being offline
 

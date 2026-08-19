@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { AuthScreen } from './components/AuthScreen'
+import { RecoveryScreen } from './components/RecoveryScreen'
 import { AuthProvider, useAuth } from './store/AuthProvider'
 import { FinanceProvider } from './store/FinanceProvider'
 import { LocalStorageRepository } from './lib/storage'
@@ -16,7 +17,7 @@ import './styles.css'
  * Nothing below the repository knows which one it got.
  */
 function Root() {
-  const { status, userId } = useAuth()
+  const { status, userId, recovering } = useAuth()
 
   if (status === 'loading') {
     return (
@@ -31,6 +32,10 @@ function Root() {
   }
 
   if (status === 'signed-out') return <AuthScreen />
+
+  /* A reset link signs the user in, so this has to come before the app: the
+     password they followed the link to set is still unset. */
+  if (recovering) return <RecoveryScreen />
 
   /*
    * Keyed by user so signing into a different account remounts the store

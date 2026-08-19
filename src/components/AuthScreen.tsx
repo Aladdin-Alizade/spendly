@@ -17,7 +17,8 @@ type Mode = 'sign-in' | 'sign-up'
  * fix it.
  */
 export function AuthScreen() {
-  const { signIn, signUp, notice } = useAuth()
+  const { signIn, signUp, sendPasswordReset, notice } = useAuth()
+  const [resetting, setResetting] = useState(false)
   const [mode, setMode] = useState<Mode>('sign-in')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -57,6 +58,10 @@ export function AuthScreen() {
     setMode(next)
     setShowErrors(false)
     setFailure(null)
+  }
+
+  if (resetting) {
+    return <ResetRequest onBack={() => setResetting(false)} onSend={sendPasswordReset} />
   }
 
   return (
@@ -140,6 +145,14 @@ export function AuthScreen() {
           {busy ? 'Gözləyin…' : mode === 'sign-in' ? 'Daxil ol' : 'Hesab yarat'}
         </button>
 
+        {mode === 'sign-in' && (
+          <p className="auth-forgot">
+            <button type="button" onClick={() => setResetting(true)}>
+              Şifrənizi unutmusunuz?
+            </button>
+          </p>
+        )}
+
         <p className="auth-switch">
           {mode === 'sign-in' ? (
             <>
@@ -157,6 +170,103 @@ export function AuthScreen() {
             </>
           )}
         </p>
+      </form>
+    </div>
+  )
+}
+
+/**
+ * Ask for the reset link.
+ *
+ * The confirmation is the same whether or not the address has an account. An
+ * app that says "no such user" is an app that will tell anyone which addresses
+ * are registered, and the person who genuinely mistyped their own address is
+ * helped just as well by being told to check the mailbox.
+ */
+function ResetRequest({
+  onBack,
+  onSend,
+}: {
+  onBack: () => void
+  onSend(email: string): Promise<void>
+}) {
+  const [email, setEmail] = useState('')
+  const [sent, setSent] = useState(false)
+  const [failure, setFailure] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setFailure(null)
+    setBusy(true)
+    try {
+      await onSend(email)
+      setSent(true)
+    } catch (cause) {
+      setFailure(cause instanceof Error ? cause.message : 'Alınmadı')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="auth">
+      <form className="auth-card card" onSubmit={submit} noValidate>
+        <div className="auth-head">
+          <span className="brand">
+            <span className="brand-mark" aria-hidden="true">S</span>
+            <span className="wordmark">Spendly</span>
+          </span>
+          <p className="auth-lead">
+            E-poçt ünvanınızı yazın — şifrəni yeniləmək üçün link göndərəcəyik.
+          </p>
+        </div>
+
+        {sent ? (
+          <>
+            <p className="auth-notice">
+              Əgər bu ünvanla hesab varsa, link göndərildi. Poçtunuzu yoxlayın —
+              spam qovluğuna da baxın.
+            </p>
+            <button type="button" className="button" onClick={onBack}>
+              Girişə qayıt
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="field">
+              <label className="field-label" htmlFor="reset-email">
+                E-poçt
+              </label>
+              <input
+                id="reset-email"
+                className="input"
+                type="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                spellCheck={false}
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </div>
+
+            {failure && <p className="auth-failure">{failure}</p>}
+
+            <button
+              type="submit"
+              className="button button-primary auth-submit"
+              disabled={busy}
+            >
+              {busy ? 'Gözləyin…' : 'Link göndər'}
+            </button>
+
+            <p className="auth-switch">
+              <button type="button" onClick={onBack}>
+                Girişə qayıt
+              </button>
+            </p>
+          </>
+        )}
       </form>
     </div>
   )

@@ -2,10 +2,12 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   changePassword as changePasswordRequest,
+  completePasswordReset as completePasswordResetRequest,
   currentUser,
   isSupabaseConfigured,
   onAuthChange,
   signIn as signInRequest,
+  sendPasswordReset as sendPasswordResetRequest,
   signOut as signOutRequest,
   signUp as signUpRequest,
 } from '../lib/supabase'
@@ -22,10 +24,20 @@ interface AuthContextValue {
   user: AccountUser | null
   /** Set after a sign-up that needs the address confirmed before signing in. */
   notice: string | null
+  /**
+   * True while the session came from a reset link and the password it was
+   * opened to set has not been set yet.
+   */
+  recovering: boolean
   signIn(email: string, password: string): Promise<void>
   signUp(email: string, password: string): Promise<void>
   /** Rejects with a message in the user's own language when it fails. */
   changePassword(currentPassword: string, nextPassword: string): Promise<void>
+  /** Email a reset link. Resolves whether or not the address has an account,
+   *  because saying which addresses exist is telling. */
+  sendPasswordReset(email: string): Promise<void>
+  /** Set the password the reset link was opened to set. */
+  completePasswordReset(nextPassword: string): Promise<void>
   signOut(): Promise<void>
 }
 
@@ -44,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
   const [user, setUser] = useState<AccountUser | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [recovering, setRecovering] = useState(false)
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
@@ -57,10 +70,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Covers a token refresh, a sign-out in another tab, and an expired
     // session, so the app cannot keep showing data for a session that ended.
-    const unsubscribe = onAuthChange((account) => {
+    const unsubscribe = onAuthChange((account, recovery) => {
       setUser(account)
       setStatus(account ? 'signed-in' : 'signed-out')
       if (account) setNotice(null)
+      // A reset link signs the user in, so without this they would land on
+      // the dashboard with the thing they came to do still undone.
+      if (recovery) setRecovering(true)
     })
 
     return () => {
@@ -75,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userId: user?.id ?? null,
       user,
       notice,
+      recovering,
 
       async signIn(email, password) {
         setNotice(null)
@@ -108,11 +125,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
 
+      async sendPasswordReset(email) {
+        setNotice(null)
+        try {
+          await sendPasswordResetRequest(email)
+        } catch (cause) {
+          throw new Error(authErrorMessage(messageOf(cause)))
+        }
+      },
+
+      async completePasswordReset(nextPassword) {
+        try {
+          await completePasswordResetRequest(nextPassword)
+          setRecovering(false)
+        } catch (cause) {
+          throw new Error(authErrorMessage(messageOf(cause)))
+        }
+      },
+
       async signOut() {
+        setRecovering(false)
         await signOutRequest()
       },
     }),
-    [status, user, notice],
+    [status, user, notice, recovering],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

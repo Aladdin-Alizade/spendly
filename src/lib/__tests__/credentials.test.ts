@@ -4,6 +4,7 @@ import {
   hasCredentialErrors,
   hasPasswordChangeErrors,
   validateCredentials,
+  validateNewPassword,
   validatePasswordChange,
   MIN_PASSWORD_LENGTH,
 } from '../credentials'
@@ -79,5 +80,61 @@ describe('validatePasswordChange', () => {
 
   it('catches a mistyped repeat', () => {
     expect(validatePasswordChange({ ...valid, repeat: 'brand-neW' }).repeat).toBeDefined()
+  })
+})
+
+describe('validateNewPassword', () => {
+  it('accepts a matching pair that is long enough', () => {
+    const errors = validateNewPassword('brand-new', 'brand-new')
+    expect(errors.next).toBeUndefined()
+    expect(errors.repeat).toBeUndefined()
+  })
+
+  it('holds it to the same length rule as everywhere else', () => {
+    const short = 'x'.repeat(MIN_PASSWORD_LENGTH - 1)
+    expect(validateNewPassword(short, short).next).toBeDefined()
+  })
+
+  it('catches a mistyped repeat', () => {
+    expect(validateNewPassword('brand-new', 'brand-neW').repeat).toBeDefined()
+  })
+
+  it('asks for no current password — the link is what stands in for it', () => {
+    expect(Object.keys(validateNewPassword('brand-new', 'brand-new'))).toEqual([])
+  })
+})
+
+describe('reset link failures', () => {
+  it('says a spent or expired link is spent, and what to do', () => {
+    expect(authErrorMessage('Email link is invalid or has expired')).toMatch(
+      /Yenidən sıfırlama/,
+    )
+  })
+})
+
+describe('rate limits', () => {
+  it('names the mail quota rather than blaming the attempt', () => {
+    // Supabase counts sign-up confirmations and reset links against one small
+    // hourly quota; "too many attempts" blames somebody for typing their
+    // password once.
+    const message = authErrorMessage('email rate limit exceeded')
+    expect(message).toMatch(/e-poçt limiti/)
+    expect(message).not.toMatch(/cəhd oldu/)
+  })
+
+  it('passes on how long the server said to wait', () => {
+    expect(
+      authErrorMessage('For security purposes, you can only request this after 47 seconds.'),
+    ).toMatch(/47 saniyə/)
+  })
+})
+
+describe('a link that no longer works', () => {
+  it('says so, rather than passing on a JWT complaint', () => {
+    // What the server says is "invalid number of segments"; what happened is
+    // that the link was already used or has expired.
+    expect(
+      authErrorMessage('invalid JWT: unable to parse or verify signature'),
+    ).toMatch(/Link vaxtı keçib/)
   })
 })

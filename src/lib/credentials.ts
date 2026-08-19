@@ -98,6 +98,31 @@ export function hasPasswordChangeErrors(errors: PasswordChangeErrors): boolean {
 }
 
 /**
+ * Setting a new password after a reset link.
+ *
+ * There is no current password to ask for here — the link out of the mailbox
+ * is what stands in for it, which is the whole point of the flow.
+ */
+export function validateNewPassword(
+  next: string,
+  repeat: string,
+): Pick<PasswordChangeErrors, 'next' | 'repeat'> {
+  const errors: Pick<PasswordChangeErrors, 'next' | 'repeat'> = {}
+
+  if (next === '') {
+    errors.next = 'Yeni şifrəni daxil edin'
+  } else if (next.length < MIN_PASSWORD_LENGTH) {
+    errors.next = `Yeni şifrə ən azı ${MIN_PASSWORD_LENGTH} simvol olmalıdır`
+  }
+
+  if (repeat !== next) {
+    errors.repeat = 'Şifrələr uyğun gəlmir'
+  }
+
+  return errors
+}
+
+/**
  * Supabase's auth errors, in the user's language. Anything unrecognised is
  * passed through rather than replaced with a vague sentence.
  */
@@ -117,8 +142,29 @@ export function authErrorMessage(message: string): string {
   if (/new password should be different|same as the old password/i.test(message)) {
     return 'Yeni şifrə köhnəsindən fərqli olmalıdır'
   }
+  if (/expired|invalid token|invalid jwt|token has expired|otp_expired/i.test(message)) {
+    return 'Link vaxtı keçib və ya artıq istifadə olunub. Yenidən sıfırlama tələb edin.'
+  }
+  /*
+   * Supabase's built-in mail service allows a handful of messages an hour,
+   * and it counts sign-up confirmations, reset links and everything else
+   * together. Calling that "too many attempts" blames the person for typing
+   * their password once — the limit is on the mail, not on them.
+   */
+  if (/email rate limit|over_email_send_rate_limit/i.test(message)) {
+    return (
+      'Supabase-in e-poçt limiti dolub — pulsuz xidmət saatda yalnız bir neçə ' +
+      'məktub göndərir. Bir saat gözləyin, təsdiqi söndürün, və ya öz SMTP-nizi qoşun.'
+    )
+  }
+
+  const wait = /you can only request this after (\d+) seconds?/i.exec(message)
+  if (wait) {
+    return `Növbəti cəhd üçün ${wait[1]} saniyə gözləmək lazımdır.`
+  }
+
   if (/rate limit|too many requests/i.test(message)) {
-    return 'Çox sayda cəhd oldu. Bir az gözləyin.'
+    return 'Çox sayda sorğu göndərilib. Bir az gözləyin.'
   }
   if (/signups not allowed|signup is disabled/i.test(message)) {
     return 'Qeydiyyat Supabase panelində bağlıdır (Authentication → Sign In / Providers).'

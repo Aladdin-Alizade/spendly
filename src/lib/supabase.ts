@@ -129,13 +129,45 @@ export async function signOut(): Promise<void> {
   if (error) throw error
 }
 
-/** Fires on sign-in, sign-out and token refresh. Returns an unsubscribe. */
-export function onAuthChange(listener: (user: AccountUser | null) => void): () => void {
+/**
+ * Fires on sign-in, sign-out and token refresh. Returns an unsubscribe.
+ *
+ * `recovery` is true for the session a reset link established. It is a signed
+ * -in session like any other, so nothing distinguishes it except this — and
+ * the app has to know, or somebody who followed a link out of their mailbox
+ * lands on the dashboard with no way to set the password they came to set.
+ */
+export function onAuthChange(
+  listener: (user: AccountUser | null, recovery: boolean) => void,
+): () => void {
   if (!supabase) return () => {}
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-    listener(toAccountUser(session?.user ?? null))
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    listener(toAccountUser(session?.user ?? null), event === 'PASSWORD_RECOVERY')
   })
   return () => data.subscription.unsubscribe()
+}
+
+/**
+ * Send the reset link.
+ *
+ * `redirectTo` is where the link lands after Supabase has verified it — this
+ * app, on whatever host it is being served from. The address has to be listed
+ * under Authentication -> URL Configuration or Supabase refuses to redirect
+ * there, which is what stops a link being pointed at somebody else's site.
+ */
+export async function sendPasswordReset(email: string): Promise<void> {
+  const client = requireAuth()
+  const { error } = await client.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: window.location.origin,
+  })
+  if (error) throw error
+}
+
+/** Set the password of the session a reset link established. */
+export async function completePasswordReset(nextPassword: string): Promise<void> {
+  const client = requireAuth()
+  const { error } = await client.auth.updateUser({ password: nextPassword })
+  if (error) throw error
 }
 
 function requireAuth() {
