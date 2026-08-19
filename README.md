@@ -71,6 +71,21 @@ you get the transactions behind it.
 Everything recorded for the month, newest first. Filter to income or expenses
 with the tabs. Tap any row to edit or delete it.
 
+### Məsləhətlər — what the numbers say
+
+Your month measured against established budgeting practice. A **Büdcə vəziyyəti**
+block (income, spending, what is left, the retained share, the gap against your
+plan), then findings in three groups — **Diqqət tələb edir**, **Yaxşı gedir**,
+**Nəzərdən keçirməyə dəyər** — at most three each, ranked by the manat at stake.
+
+Every sentence is produced by a rule that either fires or does not; nothing is
+generated. A rule with too little data behind it stays silent and says what it
+is missing under **Hələ hesablana bilməyənlər**.
+
+**Metodologiya** at the foot lists every reference used, its source, whether it
+is a US or international one, and the date it was last checked. This is
+budgeting arithmetic and educational reference material, not financial advice.
+
 ### Büdcə — the plan
 
 What the month is *supposed* to look like:
@@ -184,7 +199,7 @@ across.
 ## Development
 
 ```bash
-npm test         # 157 tests
+npm test         # 190 tests
 npm run build
 ```
 

@@ -4,6 +4,7 @@ import { TransactionDialog } from './components/TransactionDialog'
 import { Dashboard } from './screens/Dashboard'
 import { Transactions } from './screens/Transactions'
 import { Budget } from './screens/Budget'
+import { Advice } from './screens/Advice'
 import { knownMonths } from './lib/calc'
 import { currentMonth, monthOf, today } from './lib/dates'
 import { useFinance } from './store/FinanceProvider'
@@ -11,12 +12,13 @@ import { useAuth } from './store/AuthProvider'
 import { setupHint } from './lib/setupHints'
 import type { MonthKey, Transaction } from './lib/types'
 
-type Screen = 'dashboard' | 'transactions' | 'budget'
+type Screen = 'dashboard' | 'transactions' | 'budget' | 'advice'
 
 const SCREENS: { id: Screen; label: string }[] = [
   { id: 'dashboard', label: 'İcmal' },
   { id: 'transactions', label: 'Əməliyyatlar' },
   { id: 'budget', label: 'Büdcə' },
+  { id: 'advice', label: 'Məsləhətlər' },
 ]
 
 export function App() {
@@ -102,6 +104,7 @@ export function App() {
           />
         )}
         {screen === 'budget' && <Budget data={data} month={month} />}
+        {screen === 'advice' && <Advice data={data} month={month} />}
       </main>
 
       <button type="button" className="fab" onClick={openNew} aria-label="Əməliyyat əlavə et">

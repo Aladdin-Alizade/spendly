@@ -1,6 +1,8 @@
 # Financial intelligence layer — research and proposal
 
-Status: **proposal, not implemented.** Steps 1–5 of the agreed process.
+Status: **the no-schema-change half is implemented** and lives on the
+Məsləhətlər screen. The three rules that need a category classification
+(needs vs wants, 50/30/20, emergency fund) are still proposals.
 
 This document is the research summary and the implementation plan. It exists
 before the code so the methodology can be argued with before it is encoded.
@@ -202,3 +204,51 @@ recommend products, and does not guarantee outcomes. Each panel distinguishes
 - [BEA — Personal Saving Rate](https://www.bea.gov/data/income-saving/personal-saving-rate)
 - [Leys, Ley, Klein, Bernard & Licata (2013) — Detecting outliers](https://dipot.ulb.ac.be/dspace/bitstream/2013/139499/1/Leys_MAD_final-libre.pdf)
 - Warren, E. & Warren Tyagi, A. (2005). *All Your Worth: The Ultimate Lifetime Money Plan* — origin of 50/30/20
+
+---
+
+## 9. Keeping the guidance current
+
+Published guidance changes. An application built in 2026 cannot know that a
+framework was revised in 2030, and pretending otherwise is the failure mode
+worth designing against.
+
+It is not solved by fetching anything at runtime: there is no authoritative
+machine-readable feed of budgeting guidance, and a network call would make the
+advice non-deterministic, which is the property the whole layer is built on.
+
+What is done instead, in `src/lib/insights/methodology.ts`:
+
+- Every reference is **data, not code** — name, note, source, URL, origin and
+  the date it was last verified. Correcting one is a one-line edit that touches
+  no rule and no component.
+- Each carries **`reviewedOn`**, shown next to the source on screen.
+- Past `REVIEW_INTERVAL_MONTHS` (12) an entry is **marked as needing review**,
+  and the screen shows a banner naming how many are due. The app never presents
+  an unchecked reference as though it were current.
+
+So the guarantee is not "always up to date" — no offline app can promise that.
+It is: **the app will never quietly show you a figure it has not checked**, and
+updating it is a single file.
+
+## 10. Country and region
+
+Most published budgeting guidance is written for one jurisdiction. The 50/30/20
+split is from a US book, the debt-to-income thresholds are US mortgage rules,
+and the emergency-fund research is US survey data. Presenting any of it as a
+fact about money would be wrong.
+
+Each reference therefore declares an **`origin`** — `US`, `international`
+(arithmetic or a statistical method, which belongs to no country) or `app` —
+and the screen labels it.
+
+A **region selector is not implemented**, deliberately. A control that changes
+nothing is worse than no control: it implies a localisation that does not
+exist. No authoritative Azerbaijani household-budgeting framework was found in
+the research, and inventing local percentages would break the first rule of
+this layer.
+
+The shape is ready for it: `origin` already exists on every entry, so adding a
+selector means adding sourced regional entries and filtering by them. The
+moment there is a real local source, that is a small change — and the honest
+order is source first, selector second.
