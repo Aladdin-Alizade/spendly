@@ -210,14 +210,6 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
         </div>
       </Section>
 
-      <DangerZone
-        month={month}
-        hasPlan={groups.some((group) => group.lines.length > 0)}
-        transactionCount={data.transactions.length}
-        onClearPlan={() => clearMonthPlan(month)}
-        onResetAll={resetAll}
-      />
-
       <Section
         title="Kateqoriyalar"
         action={
@@ -247,6 +239,14 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
           />
         </div>
       </Section>
+
+      <DangerZone
+        month={month}
+        hasPlan={groups.some((group) => group.lines.length > 0)}
+        transactionCount={data.transactions.length}
+        onClearPlan={() => clearMonthPlan(month)}
+        onResetAll={resetAll}
+      />
 
       {editing !== null && (
         <BudgetLineDialog
