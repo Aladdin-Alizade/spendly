@@ -1722,6 +1722,47 @@ h1, h2, h3 {
   }
 }
 
+/* --- unsaved-change banner ------------------------------------------------- */
+
+/* Sticky under the header rather than floating: an unsaved change is a state
+   the page is in, not a notification that should drift away. */
+.save-banner {
+  position: sticky;
+  top: 0;
+  z-index: 19;
+  background: var(--negative-soft);
+  border-bottom: 1px solid color-mix(in srgb, var(--negative) 35%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.save-banner-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 11px 28px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.save-banner-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.save-banner-text strong { color: var(--negative); font-weight: 650; }
+
+.save-banner-detail {
+  flex-basis: 100%;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-family: var(--font);
+  word-break: break-word;
+}
+
 /* --- load gate --------------------------------------------------------------------------------- */
 
 .gate {
@@ -1749,6 +1790,7 @@ h1, h2, h3 {
 @media (max-width: 860px) {
   .shell { padding: 0 20px 110px; }
   .topbar-inner { padding: 12px 20px; }
+  .save-banner-inner { padding: 11px 20px; }
 
   .col-4, .col-6, .col-8, .col-12 { grid-column: span 12; }
 
@@ -1807,6 +1849,8 @@ h1, h2, h3 {
   .shell { padding: 0 14px 110px; }
 
   .topbar-inner { padding: 10px 14px; flex-wrap: wrap; gap: 10px; }
+
+  .save-banner-inner { padding: 10px 14px; }
 
   .brand { flex: 1; }
 

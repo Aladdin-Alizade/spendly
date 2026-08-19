@@ -7,6 +7,7 @@ import { Budget } from './screens/Budget'
 import { knownMonths } from './lib/calc'
 import { currentMonth, monthOf, today } from './lib/dates'
 import { useFinance } from './store/FinanceProvider'
+import { setupHint } from './lib/setupHints'
 import type { MonthKey, Transaction } from './lib/types'
 
 type Screen = 'dashboard' | 'transactions' | 'budget'
@@ -22,6 +23,8 @@ export function App() {
     data,
     status,
     error,
+    saveError,
+    dismissSaveError,
     retry,
     addTransaction,
     updateTransaction,
@@ -74,6 +77,8 @@ export function App() {
           </button>
         </div>
       </header>
+
+      {saveError && <SaveBanner message={saveError} onDismiss={dismissSaveError} />}
 
       <main className="shell">
         {screen === 'dashboard' && (
@@ -129,25 +134,44 @@ export function App() {
   )
 }
 
+
 /**
- * Setup steps that cannot be done from the app, matched from the error the
- * backend actually returned. Better than echoing a raw API message at someone
- * who has just connected a fresh project.
+ * A write did not reach the backend.
+ *
+ * The edit is still on screen because local state accepted it, which is
+ * exactly why this has to be said out loud — otherwise an unsaved figure is
+ * indistinguishable from a saved one until the page is reloaded and it is
+ * gone.
  */
-const SETUP_HINTS: { match: RegExp; hint: string }[] = [
-  {
-    match: /anonymous sign-?ins?.*(disabled|not enabled)/i,
-    hint: 'Supabase panelində Authentication → Sign In / Providers bölməsindən Anonymous sign-ins seçimini aktiv edin.',
-  },
-  {
-    match: /could not find the table|PGRST205|does not exist/i,
-    hint: 'Cədvəlləri yaratmaq üçün Supabase SQL redaktorunda supabase/schema.sql faylını işə salın.',
-  },
-  {
-    match: /failed to fetch|network|ENOTFOUND/i,
-    hint: 'İnternet bağlantınızı və VITE_SUPABASE_URL dəyərini yoxlayın.',
-  },
-]
+function SaveBanner({
+  message,
+  onDismiss,
+}: {
+  message: string
+  onDismiss: () => void
+}) {
+  const hint = setupHint(message)
+
+  return (
+    <div className="save-banner" role="alert">
+      <div className="save-banner-inner">
+        <span className="save-banner-text">
+          <strong>Dəyişiklik yadda saxlanılmadı.</strong>{' '}
+          {hint ?? message} Səhifəni yeniləsəniz, son dəyişiklik itəcək.
+        </span>
+        {hint && <span className="save-banner-detail">{message}</span>}
+        <button
+          type="button"
+          className="icon-button"
+          onClick={onDismiss}
+          aria-label="Bağla"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  )
+}
 
 /** Shown while the first load is in flight, or when it failed. */
 function Gate({
@@ -159,9 +183,7 @@ function Gate({
   error: string | null
   onRetry: () => void
 }) {
-  const hint = error
-    ? SETUP_HINTS.find((entry) => entry.match.test(error))?.hint
-    : undefined
+  const hint = setupHint(error)
 
   return (
     <div className="gate">

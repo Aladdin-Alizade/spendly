@@ -60,20 +60,24 @@ export class SupabaseRepository implements FinanceRepository {
     return data
   }
 
+  /**
+   * The returned promise rejects when the write failed, so the caller can say
+   * so. The queue's own copy of it must not, or one rejected write would
+   * poison every save that follows it.
+   */
   save(data: FinanceData): Promise<void> {
     // Capture the baseline now so queued saves diff against the right state.
     const baseline = this.previous
     this.previous = data
 
-    this.queue = this.queue
-      .then(() => this.write(baseline, data))
-      .catch((error) => {
-        // Re-sync on the next load rather than leaving a wrong baseline.
-        this.previous = baseline
-        console.error('Supabase save failed', error)
-      })
+    const write = this.queue.then(() => this.write(baseline, data))
 
-    return this.queue as Promise<void>
+    this.queue = write.catch(() => {
+      // Re-sync on the next load rather than leaving a wrong baseline.
+      this.previous = baseline
+    })
+
+    return write
   }
 
   private async write(before: FinanceData, after: FinanceData): Promise<void> {

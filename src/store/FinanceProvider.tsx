@@ -32,6 +32,13 @@ interface FinanceContextValue {
   status: LoadStatus
   /** Set when loading failed, so the UI can say what went wrong. */
   error: string | null
+  /**
+   * Set when the last write did not reach the backend. The edit is still on
+   * screen — it is in local state — but it is not saved, and saying nothing
+   * would let it read as though it were.
+   */
+  saveError: string | null
+  dismissSaveError(): void
   retry(): void
   addTransaction(transaction: Omit<Transaction, 'id'>): void
   updateTransaction(id: string, patch: Omit<Transaction, 'id'>): void
@@ -83,6 +90,7 @@ export function FinanceProvider({
   const [data, setData] = useState<FinanceData>(emptyData)
   const [status, setStatus] = useState<LoadStatus>('loading')
   const [error, setError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
@@ -116,7 +124,13 @@ export function FinanceProvider({
   const commit = useCallback((update: (previous: FinanceData) => FinanceData) => {
     setData((previous) => {
       const next = update(previous)
-      void repo.current.save(next)
+      repo.current.save(next).then(
+        () => setSaveError(null),
+        (cause: unknown) =>
+          setSaveError(
+            cause instanceof Error ? cause.message : 'Dəyişiklik yadda saxlanılmadı',
+          ),
+      )
       return next
     })
   }, [])
@@ -126,6 +140,8 @@ export function FinanceProvider({
       data,
       status,
       error,
+      saveError,
+      dismissSaveError: () => setSaveError(null),
       retry: () => setAttempt((value) => value + 1),
 
       addTransaction(transaction) {
@@ -280,7 +296,7 @@ export function FinanceProvider({
         }))
       },
     }),
-    [data, status, error, commit],
+    [data, status, error, saveError, commit],
   )
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>
