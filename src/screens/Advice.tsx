@@ -418,21 +418,30 @@ function Missing({
     return <p className="advice-empty">Bu ay xərc qeyd edilməyib.</p>
   }
 
+  /* Only when coverage is what is actually missing. Telling somebody who has
+     classified everything that they need to classify 90% of it sends them to
+     do work that will not help — the real reason is in `extra`. */
+  const short = coverage < CLASSIFICATION_COVERAGE_MIN
+
   return (
     <div className="missing">
-      <p className="missing-lead">
-        Xərcin {Math.round(coverage * 100)}%-i təsnif edilib. Bu hesablama üçün ən
-        azı {Math.round(CLASSIFICATION_COVERAGE_MIN * 100)}% lazımdır.
-      </p>
-      {missing.length > 0 && (
-        <p className="missing-list">
-          Təsnif edilməyən: {missing.slice(0, 5).join(', ')}
-          {missing.length > 5 && ` və daha ${missing.length - 5}`}
-        </p>
+      {short && (
+        <>
+          <p className="missing-lead">
+            Xərcin {Math.round(coverage * 100)}%-i təsnif edilib. Bu hesablama üçün
+            ən azı {Math.round(CLASSIFICATION_COVERAGE_MIN * 100)}% lazımdır.
+          </p>
+          {missing.length > 0 && (
+            <p className="missing-list">
+              Təsnif edilməyən: {missing.slice(0, 5).join(', ')}
+              {missing.length > 5 && ` və daha ${missing.length - 5}`}
+            </p>
+          )}
+          <p className="missing-how">
+            Büdcə → Kateqoriyalar bölməsində hər kateqoriyaya növ təyin edin.
+          </p>
+        </>
       )}
-      <p className="missing-how">
-        Büdcə → Kateqoriyalar bölməsində hər kateqoriyaya növ təyin edin.
-      </p>
       {extra && <p className="missing-list">{extra}</p>}
     </div>
   )
