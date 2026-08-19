@@ -5,7 +5,7 @@ import { PlannedAmountsDialog } from '../components/PlannedAmountsDialog'
 import { CategoryDialog } from '../components/CategoryDialog'
 import { categoriesOfType, categoryUsage, plannedIncomeRows } from '../lib/categories'
 import { plannedSavingsRows } from '../lib/savings'
-import { formatAZN, formatSignedAZN } from '../lib/money'
+import { formatAZN, formatSignedAZN, round2 } from '../lib/money'
 import { formatMonth } from '../lib/dates'
 import { budgetGroups, summarise } from '../lib/calc'
 import { useFinance } from '../store/FinanceProvider'
@@ -34,6 +34,11 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
   const [editing, setEditing] = useState<BudgetLine | 'new' | null>(null)
   const [editingIncome, setEditingIncome] = useState(false)
   const [editingSavings, setEditingSavings] = useState(false)
+  /* An account with no categories cannot plan anything yet, and the thing it
+     needs is on the other side of this switch — so that is where it opens. */
+  const [view, setView] = useState<'plan' | 'setup'>(
+    data.categories.length === 0 ? 'setup' : 'plan',
+  )
   const [editingCategory, setEditingCategory] = useState<
     { category: CategoryDef | null; type: TransactionType } | null
   >(null)
@@ -49,268 +54,282 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
   // is nothing to copy, so the offer is not made.
   const hasPriorPlan = data.budgetLines.some((line) => line.month < month)
 
+  /* The sheet's own remainder is planned income minus planned spending, and
+     `summary.plannedRemainder` stays exactly that. What the month actually has
+     free is that figure less what it means to put away, so when there is a
+     savings plan the card shows the free amount and says it is the free one. */
+  const hasSavingsPlan = summary.plannedSavings > 0
+  const plannedLeft = hasSavingsPlan
+    ? round2(summary.plannedRemainder - summary.plannedSavings)
+    : summary.plannedRemainder
+
   return (
     <>
-      <Section
-        title="Planlaşdırılan gəlir"
-        action={
-          <button
-            type="button"
-            className="button button-quiet"
-            onClick={() => setEditingIncome(true)}
-          >
-            Dəyiş
-          </button>
-        }
-      >
-        <div className="card rows">
-          {incomeRows.map((row) => (
-            <PlanRow
-              key={row.category}
-              label={row.category}
-              value={row.planned}
-              note={row.orphaned ? 'kateqoriya silinib' : undefined}
-            />
-          ))}
-          {incomeRows.length === 0 && (
-            <p className="rows-more">
-              Hələ gəlir kateqoriyası yoxdur. Aşağıdan əlavə edin.
-            </p>
-          )}
-          <PlanRow label="Cəmi" value={summary.plannedIncome} strong />
-        </div>
-      </Section>
+      {/* Two things live on this screen: the month, which changes every
+          month, and the setup behind it, which somebody writes once and
+          rarely touches. Stacking them made the second scroll past on the
+          way to the first every single time. */}
+      <div className="segmented budget-switch" role="group" aria-label="Görünüş">
+        <button
+          type="button"
+          className="segment"
+          aria-pressed={view === 'plan'}
+          onClick={() => setView('plan')}
+        >
+          Plan
+        </button>
+        <button
+          type="button"
+          className="segment"
+          aria-pressed={view === 'setup'}
+          onClick={() => setView('setup')}
+        >
+          Quraşdırma
+        </button>
+      </div>
 
-      <Section
-        title="Planlaşdırılan xərclər"
-        action={
-          groups.length > 0 ? (
-            <button
-              type="button"
-              className="button button-quiet"
-              onClick={() => setEditing('new')}
-            >
-              Sətir əlavə et
-            </button>
-          ) : undefined
-        }
-      >
-        {groups.length === 0 ? (
-          <div className="card">
-            <EmptyState
-              title={`${formatMonth(month)} üçün plan yoxdur`}
-              body={
-                hasPriorPlan
-                  ? 'Keçən ayın planını köçürün və ya sıfırdan başlayın.'
-                  : 'Planlaşdırdığınız xərcləri sətir-sətir əlavə edin.'
-              }
-              action={
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                  {hasPriorPlan && (
-                    <button
-                      type="button"
-                      className="button button-primary"
-                      onClick={() => applyTemplate(month)}
-                    >
-                      Planı köçür
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className={hasPriorPlan ? 'button' : 'button button-primary'}
-                    onClick={() => setEditing('new')}
-                  >
-                    Sətir əlavə et
-                  </button>
-                </div>
-              }
-            />
-          </div>
-        ) : (
-          <div className="card rows">
-            <div className="budget-head">
-              <span>Kateqoriya</span>
-              <span className="budget-cell-num">Plan</span>
-              <span className="budget-cell-num">Faktiki</span>
-              <span className="budget-cell-num budget-variance">Qalıq</span>
+      {view === 'plan' ? (
+        <>
+
+          {/* The month on one card: what was planned, and what actually
+              happened, side by side. It replaces three stacked sections that
+              between them carried four numbers — on a phone that was 672px of
+              headings and padding to read four figures. */}
+          <Section title={`${formatMonth(month)} planı`}>
+            <div className="card plan-summary">
+              <button
+                type="button"
+                className="plan-cell plan-cell-editable"
+                onClick={() => setEditingIncome(true)}
+              >
+                <span className="micro">Gəlir</span>
+                <span className="plan-cell-value num">
+                  {formatAZN(summary.plannedIncome)}
+                </span>
+                <span className="plan-cell-actual num">
+                  faktiki {formatAZN(summary.actualIncome)}
+                </span>
+              </button>
+
+              {/* Planned spending is the sum of the lines below, so there is
+                  nothing to edit here — the lines are the edit. */}
+              <div className="plan-cell">
+                <span className="micro">Xərc</span>
+                <span className="plan-cell-value num">
+                  {formatAZN(summary.plannedExpenses)}
+                </span>
+                <span className="plan-cell-actual num">
+                  faktiki {formatAZN(summary.actualExpenses)}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                className="plan-cell plan-cell-editable"
+                onClick={() => setEditingSavings(true)}
+                disabled={data.savingsPots.length === 0}
+              >
+                <span className="micro">Yığım</span>
+                <span className="plan-cell-value num">
+                  {formatAZN(summary.plannedSavings)}
+                </span>
+                <span className="plan-cell-actual num">
+                  {data.savingsPots.length === 0
+                    ? 'qab yoxdur'
+                    : `faktiki ${formatAZN(summary.actualSavings)}`}
+                </span>
+              </button>
+
+              <div className="plan-cell plan-cell-total">
+                <span className="micro">{hasSavingsPlan ? 'Sərbəst qalıq' : 'Qalıq'}</span>
+                <span className={`plan-cell-value num${plannedLeft < 0 ? ' neg' : ''}`}>
+                  {formatSignedAZN(plannedLeft)}
+                </span>
+                <span className="plan-cell-actual num">
+                  faktiki {formatSignedAZN(summary.actualRemainder)}
+                </span>
+              </div>
             </div>
 
-            {groups.map((group) => (
-              <div key={group.category}>
-                <div className="budget-group">
-                  <span className="budget-group-name">{group.category}</span>
+            <p className="section-foot">
+              planlaşdırılan gəlir {formatAZN(summary.plannedIncome)} − xərc{' '}
+              {formatAZN(summary.plannedExpenses)}
+              {hasSavingsPlan && <> − yığım {formatAZN(summary.plannedSavings)}</>}{' '}
+              = {formatSignedAZN(plannedLeft)}
+              {plannedLeft < 0 && ' — bu plan qazancdan çox xərcləyir'}
+              {'.'}
+              {hasSavingsPlan && summary.actualSavings < summary.plannedSavings && (
+                <>
+                  {' '}Yığım planına çatmaq üçün{' '}
+                  {formatAZN(summary.plannedSavings - summary.actualSavings)} qalıb.
+                </>
+              )}
+            </p>
+          </Section>
+
+          <Section
+            title="Planlaşdırılan xərclər"
+            action={
+              groups.length > 0 ? (
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  onClick={() => setEditing('new')}
+                >
+                  Sətir əlavə et
+                </button>
+              ) : undefined
+            }
+          >
+            {groups.length === 0 ? (
+              <div className="card">
+                <EmptyState
+                  title={`${formatMonth(month)} üçün plan yoxdur`}
+                  body={
+                    hasPriorPlan
+                      ? 'Keçən ayın planını köçürün və ya sıfırdan başlayın.'
+                      : 'Planlaşdırdığınız xərcləri sətir-sətir əlavə edin.'
+                  }
+                  action={
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                      {hasPriorPlan && (
+                        <button
+                          type="button"
+                          className="button button-primary"
+                          onClick={() => applyTemplate(month)}
+                        >
+                          Planı köçür
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className={hasPriorPlan ? 'button' : 'button button-primary'}
+                        onClick={() => setEditing('new')}
+                      >
+                        Sətir əlavə et
+                      </button>
+                    </div>
+                  }
+                />
+              </div>
+            ) : (
+              <div className="card rows">
+                <div className="budget-head">
+                  <span>Kateqoriya</span>
+                  <span className="budget-cell-num">Plan</span>
+                  <span className="budget-cell-num">Faktiki</span>
+                  <span className="budget-cell-num budget-variance">Qalıq</span>
+                </div>
+
+                {groups.map((group) => (
+                  <div key={group.category}>
+                    <div className="budget-group">
+                      <span className="budget-group-name">{group.category}</span>
+                      <span className="budget-cell-num num">
+                        {formatAZN(group.planned)}
+                      </span>
+                      <span
+                        className="budget-cell-num num"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        {formatAZN(group.actual)}
+                      </span>
+                      <span
+                        className={`budget-cell-num num budget-variance${
+                          group.variance < 0 ? ' neg' : ''
+                        }`}
+                      >
+                        {formatSignedAZN(group.variance)}
+                      </span>
+                    </div>
+
+                    {group.lines.map((line) => (
+                      <button
+                        key={line.id}
+                        type="button"
+                        className="budget-line row"
+                        onClick={() => setEditing(line)}
+                      >
+                        <span className="budget-line-name">{line.description}</span>
+                        <span className="budget-cell-num num">
+                          {formatAZN(line.planned)}
+                        </span>
+                      </button>
+                    ))}
+
+                    {group.lines.length === 0 && (
+                      <p className="budget-line budget-line-empty">
+                        Planlaşdırılmadan xərclənib
+                      </p>
+                    )}
+                  </div>
+                ))}
+
+                <div className="budget-group budget-total">
+                  <span>Cəmi</span>
                   <span className="budget-cell-num num">
-                    {formatAZN(group.planned)}
+                    {formatAZN(summary.plannedExpenses)}
                   </span>
-                  <span
-                    className="budget-cell-num num"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    {formatAZN(group.actual)}
+                  <span className="budget-cell-num num">
+                    {formatAZN(summary.actualExpenses)}
                   </span>
                   <span
                     className={`budget-cell-num num budget-variance${
-                      group.variance < 0 ? ' neg' : ''
+                      summary.plannedExpenses - summary.actualExpenses < 0 ? ' neg' : ''
                     }`}
                   >
-                    {formatSignedAZN(group.variance)}
+                    {formatSignedAZN(summary.plannedExpenses - summary.actualExpenses)}
                   </span>
                 </div>
-
-                {group.lines.map((line) => (
-                  <button
-                    key={line.id}
-                    type="button"
-                    className="budget-line row"
-                    onClick={() => setEditing(line)}
-                  >
-                    <span className="budget-line-name">{line.description}</span>
-                    <span className="budget-cell-num num">
-                      {formatAZN(line.planned)}
-                    </span>
-                  </button>
-                ))}
-
-                {group.lines.length === 0 && (
-                  <p className="budget-line budget-line-empty">
-                    Planlaşdırılmadan xərclənib
-                  </p>
-                )}
               </div>
-            ))}
+            )}
+          </Section>
 
-            <div className="budget-group budget-total">
-              <span>Cəmi</span>
-              <span className="budget-cell-num num">
-                {formatAZN(summary.plannedExpenses)}
-              </span>
-              <span className="budget-cell-num num">
-                {formatAZN(summary.actualExpenses)}
-              </span>
-              <span
-                className={`budget-cell-num num budget-variance${
-                  summary.plannedExpenses - summary.actualExpenses < 0 ? ' neg' : ''
-                }`}
+        </>
+      ) : (
+        <>
+
+          <Section
+            title="Kateqoriyalar"
+            action={
+              <button
+                type="button"
+                className="button button-quiet"
+                onClick={() => setEditingCategory({ category: null, type: 'expense' })}
               >
-                {formatSignedAZN(summary.plannedExpenses - summary.actualExpenses)}
-              </span>
+                Əlavə et
+              </button>
+            }
+          >
+            <div className="category-columns">
+              <CategoryList
+                data={data}
+                type="expense"
+                title="Xərc"
+                onSelect={(category) => setEditingCategory({ category, type: 'expense' })}
+                onAdd={() => setEditingCategory({ category: null, type: 'expense' })}
+              />
+              <CategoryList
+                data={data}
+                type="income"
+                title="Gəlir"
+                onSelect={(category) => setEditingCategory({ category, type: 'income' })}
+                onAdd={() => setEditingCategory({ category: null, type: 'income' })}
+              />
             </div>
-          </div>
-        )}
-      </Section>
+          </Section>
 
-      <Section
-        title="Planlaşdırılan yığım"
-        action={
-          data.savingsPots.length > 0 ? (
-            <button
-              type="button"
-              className="button button-quiet"
-              onClick={() => setEditingSavings(true)}
-            >
-              Dəyiş
-            </button>
-          ) : undefined
-        }
-      >
-        <div className="card rows">
-          {savingsRows.map((row) => (
-            <PlanRow
-              key={row.pot}
-              label={row.pot}
-              value={row.planned}
-              note={row.orphaned ? 'qab silinib' : undefined}
-            />
-          ))}
-          {savingsRows.length === 0 && (
-            <p className="rows-more">
-              Hələ yığım qabı yoxdur. Yığım səhifəsindən əlavə edin.
-            </p>
-          )}
-          <PlanRow label="Plan" value={summary.plannedSavings} strong />
-          <PlanRow label="Faktiki kənara qoyulan" value={summary.actualSavings} />
-        </div>
-        {summary.plannedSavings > 0 && (
-          <p className="section-foot">
-            {summary.actualSavings >= summary.plannedSavings
-              ? 'Bu ayın yığım planı yerinə yetirilib.'
-              : `Plana çatmaq üçün ${formatAZN(
-                  summary.plannedSavings - summary.actualSavings,
-                )} qalıb. Yalnız gəlirdən kənara qoyulan sayılır — kənardan gələn pul planın yerinə yetirilməsi deyil.`}
-          </p>
-        )}
-      </Section>
-
-      <Section title="Planlaşdırılan qalıq">
-        <div className="card" style={{ padding: '16px' }}>
-          <p
-            className={`num${summary.plannedRemainder < 0 ? ' neg' : ''}`}
-            style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-0.02em' }}
-          >
-            {formatSignedAZN(summary.plannedRemainder)}
-          </p>
-          <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
-            planlaşdırılan gəlir {formatAZN(summary.plannedIncome)} −{' '}
-            planlaşdırılan xərc {formatAZN(summary.plannedExpenses)}
-            {summary.plannedRemainder < 0 && ' · bu plan qazancdan çox xərcləyir'}
-          </p>
-          {/* Savings are subtracted here rather than folded into the figure
-              above, so the sheet's own arithmetic stays readable and the
-              reader can see what the savings plan costs the month. */}
-          {summary.plannedSavings > 0 && (
-            <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
-              yığım planı {formatAZN(summary.plannedSavings)} çıxılsa, sərbəst
-              qalan{' '}
-              <strong
-                className={`num${
-                  summary.plannedRemainder - summary.plannedSavings < 0 ? ' neg' : ''
-                }`}
-              >
-                {formatSignedAZN(summary.plannedRemainder - summary.plannedSavings)}
-              </strong>
-            </p>
-          )}
-        </div>
-      </Section>
-
-      <Section
-        title="Kateqoriyalar"
-        action={
-          <button
-            type="button"
-            className="button button-quiet"
-            onClick={() => setEditingCategory({ category: null, type: 'expense' })}
-          >
-            Əlavə et
-          </button>
-        }
-      >
-        <div className="category-columns">
-          <CategoryList
-            data={data}
-            type="expense"
-            title="Xərc"
-            onSelect={(category) => setEditingCategory({ category, type: 'expense' })}
-            onAdd={() => setEditingCategory({ category: null, type: 'expense' })}
+          <DangerZone
+            month={month}
+            hasPlan={groups.some((group) => group.lines.length > 0)}
+            transactionCount={data.transactions.length}
+            savingsCount={data.savingsEntries.length}
+            onClearPlan={() => clearMonthPlan(month)}
+            onResetAll={resetAll}
           />
-          <CategoryList
-            data={data}
-            type="income"
-            title="Gəlir"
-            onSelect={(category) => setEditingCategory({ category, type: 'income' })}
-            onAdd={() => setEditingCategory({ category: null, type: 'income' })}
-          />
-        </div>
-      </Section>
+        </>
+      )}
 
-      <DangerZone
-        month={month}
-        hasPlan={groups.some((group) => group.lines.length > 0)}
-        transactionCount={data.transactions.length}
-        savingsCount={data.savingsEntries.length}
-        onClearPlan={() => clearMonthPlan(month)}
-        onResetAll={resetAll}
-      />
 
       {editing !== null && (
         <BudgetLineDialog
@@ -441,34 +460,6 @@ function CategoryList({
           <span className="row-title">+ Kateqoriya əlavə et</span>
         </span>
       </button>
-    </div>
-  )
-}
-
-function PlanRow({
-  label,
-  value,
-  note,
-  strong = false,
-}: {
-  label: string
-  value: number
-  /** Why this line is unusual — currently only ever "the category is gone". */
-  note?: string
-  strong?: boolean
-}) {
-  return (
-    <div
-      className="row"
-      style={{ cursor: 'default', fontWeight: strong ? 600 : undefined }}
-    >
-      <span className="row-main">
-        <span className="row-title" style={{ fontWeight: strong ? 600 : 500 }}>
-          {label}
-        </span>
-        {note && <span className="row-meta">{note}</span>}
-      </span>
-      <span className="row-amount num">{formatAZN(value)}</span>
     </div>
   )
 }

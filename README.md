@@ -37,11 +37,11 @@ A new account is **empty** — no categories, no plan, no example figures.
 Categories are how you decide to think about your own money, so the app does
 not decide for you.
 
-1. **Büdcə → Kateqoriyalar → + Kateqoriya əlavə et.** Make the handful you
+1. **Büdcə → Quraşdırma → Kateqoriyalar → + Kateqoriya əlavə et.** Make the handful you
    actually use, on both sides: what you earn (`Maaş`), and what you spend on
    (`Ərzaq`, `Nəqliyyat`, `Kirayə`…). More can be added at any time.
-2. **Büdcə → Sətir əlavə et** for what you plan to spend this month, and
-   **Planlaşdırılan gəlir → Dəyiş** for what you expect to earn.
+2. **Büdcə → Plan → Sətir əlavə et** for what you plan to spend this month,
+   and tap **Gəlir** on the card above it for what you expect to earn.
 3. **Əlavə et** in the header to record what you actually earn and spend.
 
 From the second month on, **Planı köçür** copies the previous month's plan
@@ -114,8 +114,18 @@ budgeting arithmetic and educational reference material, not financial advice.
 
 ### Büdcə — the plan
 
+Two halves, behind a switch at the top. **Plan** is the month; **Quraşdırma**
+is the setup behind it — categories and the delete tools — which is written
+once and rarely touched, so it no longer scrolls past on the way to the month.
+An account with no categories yet opens on Quraşdırma, because that is what it
+needs first.
+
 What the month is *supposed* to look like:
 
+- The card at the top holds the whole month: planned income, planned spending,
+  planned savings and what is left, each with what actually happened under it.
+  Income and savings are written by hand, so those two are the ones you can
+  tap; the other two are worked out from them.
 - **Planlaşdırılan gəlir** — what you expect to earn, per income category.
 - **Planlaşdırılan xərclər** — your planned spending lines, grouped by
   category, next to what you have actually spent.
@@ -152,7 +162,7 @@ everywhere else in the app.
 
 Once a pot has something in it, the emergency-fund panel stops showing a target
 alone and starts showing how far along you are. To hold yourself to a monthly
-figure rather than a final one, plan it in **Büdcə → Planlaşdırılan yığım**.
+figure rather than a final one, tap **Yığım** on the Büdcə plan card.
 
 If you recorded savings the older way — as spending into a category marked
 *Yığım* — the screen offers to convert those transactions into deposits. It
@@ -170,18 +180,18 @@ deletes the transactions, so it asks first.
 | Look at a longer stretch | The period buttons on İcmal: **Bu ay · Keçən ay · 3 ay · 6 ay · Bu il** |
 | Start planning a month | **Büdcə** → **Planı köçür** to copy last month's plan forward (from your second month on) |
 | Add a planned expense | **Büdcə** → **Sətir əlavə et** |
-| Set expected income | **Büdcə** → **Planlaşdırılan gəlir** → **Dəyiş** |
-| Add a category | **Büdcə** → **Kateqoriyalar** → **+ Kateqoriya əlavə et** |
+| Set expected income | **Büdcə** → tap **Gəlir** on the plan card |
+| Add a category | **Büdcə** → **Quraşdırma** → **Kateqoriyalar** → **+ Kateqoriya əlavə et** |
 | Start saving | **Yığım** → **Qab əlavə et**, name the goal, optionally set a target |
 | Record money set aside | **Yığım** → **Qoy / götür** → **Qoyuram** → **Gəlirimdən** |
 | Record a windfall you saved | The same, but **Kənardan** — it stays out of your income figures |
 | Take money out of a pot | **Qoy / götür** → **Götürürəm**, then record the spending as a normal transaction |
-| Plan what to save each month | **Büdcə** → **Planlaşdırılan yığım** → **Dəyiş** |
-| Rename a category | Tap it in **Kateqoriyalar**, type the new name, save |
+| Plan what to save each month | **Büdcə** → tap **Yığım** on the plan card |
+| Rename a category | Tap it in **Quraşdırma → Kateqoriyalar**, type the new name, save |
 | Delete a category | Tap it → **Sil** |
 | Classify a category | Tap it → **Növü** (needed by the 50/30/20 and needs-vs-wants panels) |
-| Wipe one month's plan | **Büdcə** → **Silmə** → **Planı sil** → **Təsdiqlə** |
-| Wipe everything | **Büdcə** → **Silmə** → **Bütün məlumatları sil** |
+| Wipe one month's plan | **Büdcə** → **Quraşdırma** → **Silmə** → **Planı sil** → **Təsdiqlə** |
+| Wipe everything | **Büdcə** → **Quraşdırma** → **Silmə** → **Bütün məlumatları sil** |
 | Change your password | The profile button → **Şifrə** → **Dəyiş** |
 | Reset a forgotten password | **Şifrənizi unutmusunuz?** on the sign-in screen |
 | See my account | The round button at the top right |
