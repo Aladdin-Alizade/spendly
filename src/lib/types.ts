@@ -20,42 +20,6 @@ export type DateKey = string
 export type TransactionType = 'income' | 'expense'
 
 /**
- * The expense categories an account starts with — one for each entry of the
- * data-validation list on 'Aylıq rasxod'!C3:C25, translated into Azerbaijani.
- *
- * These are a starting set, not the set. Categories are data now: they live in
- * `FinanceData.categories` and can be added to, renamed and removed. This list
- * is only what a new account is seeded with.
- */
-export const EXPENSE_CATEGORIES = [
-  'Kreditlər',
-  'Ərzaq',
-  'Nəqliyyat',
-  'Şəxsi gigiyena',
-  'Telefon və internet',
-  'Təhsil',
-  'İdman',
-  'Əyləncə',
-  'Hədiyyə və xeyriyyə',
-  'Əlavə xərclər',
-  'Avtomobil kartı',
-] as const
-
-/**
- * The income categories an account starts with. The sheet modelled income as
- * exactly two rows ('BÜDCƏ İCMALI'!B11 and B12), and the planned side of
- * income still has exactly those two fields — so these two are seeded, and
- * anything added beyond them is reported with no planned amount.
- */
-export const INCOME_CATEGORIES = ['Maaş', 'Əlavə gəlir'] as const
-
-/**
- * A category is referenced by name, the way the spreadsheet did it and the way
- * every stored row already does. The id exists so a rename is an edit to one
- * record rather than a new category, and so the name can change without the
- * history losing track of which category it was.
- */
-/**
  * What a category is *for*, which is what the needs/wants frameworks measure.
  *
  * Deliberately optional. Nothing guesses it: an unclassified category stays
@@ -76,6 +40,16 @@ export const CATEGORY_KINDS: CategoryKind[] = [
   'saving',
 ]
 
+/**
+ * A category is referenced by name, the way the spreadsheet did it and the way
+ * every stored row already does. The id exists so a rename is an edit to one
+ * record rather than a new category, and so the name can change without the
+ * history losing track of which category it was.
+ *
+ * A new account holds none of these. Categories are the shape somebody gives
+ * their own money, so the app hands out no starting set and no example plan —
+ * the list is empty until its owner writes it.
+ */
 export interface CategoryDef {
   id: string
   name: string
@@ -97,23 +71,6 @@ export function isCategoryKind(value: unknown): value is CategoryKind {
 export type ExpenseCategory = string
 export type IncomeCategory = string
 export type Category = string
-
-/** The categories a new account starts with. Ids are stable, so seeding the
- *  same account twice cannot produce duplicates. */
-export function defaultCategories(): CategoryDef[] {
-  return [
-    ...EXPENSE_CATEGORIES.map((name, index) => ({
-      id: `cat-expense-${index}`,
-      name: name as string,
-      type: 'expense' as TransactionType,
-    })),
-    ...INCOME_CATEGORIES.map((name, index) => ({
-      id: `cat-income-${index}`,
-      name: name as string,
-      type: 'income' as TransactionType,
-    })),
-  ]
-}
 
 /**
  * Categories were stored in Russian before the app was translated. Data saved
@@ -182,8 +139,8 @@ export interface IncomePlan {
  * Read an income plan saved in either shape.
  *
  * Snapshots written before income categories were editable carry `salary` and
- * `additional`; those two figures belong to the two categories an account is
- * seeded with, so that is where they are put.
+ * `additional`; those two figures belong to the two categories that shape
+ * stood for, so that is where they are put.
  */
 export function migrateIncomePlan(value: unknown): IncomePlan {
   const raw = (value ?? {}) as Partial<IncomePlan> & {
@@ -201,7 +158,12 @@ export function migrateIncomePlan(value: unknown): IncomePlan {
     return { month, amounts }
   }
 
-  const [SALARY, ADDITIONAL] = INCOME_CATEGORIES
+  // The two names the old two-field shape stood for. They are written out
+  // here because nothing hands them out any more: an account keeps only the
+  // income categories its owner made, and these are what the legacy figures
+  // were always called.
+  const SALARY = 'Maaş'
+  const ADDITIONAL = 'Əlavə gəlir'
   const amounts: Record<string, number> = {}
   if (Number(raw.salary) > 0) amounts[SALARY] = Number(raw.salary)
   if (Number(raw.additional) > 0) amounts[ADDITIONAL] = Number(raw.additional)

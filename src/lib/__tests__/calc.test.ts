@@ -10,10 +10,10 @@ import {
   sortTransactions,
   summarise,
 } from '../calc'
-import { budgetTemplate } from '../seed'
+import { sheetCategories, sheetPlan } from './fixtures'
 import { formatAZN, formatSignedAZN, parseAmount, round2, sum } from '../money'
 import { isValidDate, monthOf, shiftMonth } from '../dates'
-import { defaultCategories, migrateIncomePlan, plannedIncomeOf } from '../types'
+import { migrateIncomePlan, plannedIncomeOf } from '../types'
 import type { FinanceData, Transaction } from '../types'
 
 const M = '2025-10'
@@ -23,7 +23,7 @@ function build(partial: Partial<FinanceData> = {}): FinanceData {
     transactions: [],
     budgetLines: [],
     incomePlans: [],
-    categories: defaultCategories(),
+    categories: sheetCategories(),
     ...partial,
   }
 }
@@ -48,14 +48,14 @@ function tx(over: Partial<Transaction> = {}): Transaction {
 
 describe('spreadsheet fidelity', () => {
   it('reproduces F11: planned expenses total 1,142.00 ₼', () => {
-    const data = build({ budgetLines: budgetTemplate(M) })
+    const data = build({ budgetLines: sheetPlan(M) })
     expect(plannedExpenses(data.budgetLines, M)).toBe(1142)
   })
 
   it('reproduces the full BÜDCƏ İCMALI block with no actuals recorded', () => {
     // C11 = 990, C12 = 0, column E empty — exactly the state of the sheet.
     const data = build({
-      budgetLines: budgetTemplate(M),
+      budgetLines: sheetPlan(M),
       incomePlans: [{ month: M, amounts: { 'Maaş': 990 } }],
     })
     const summary = summarise(data, M)
@@ -77,7 +77,7 @@ describe('spreadsheet fidelity', () => {
         tx({ amount: 100.55 }),
       ],
       incomePlans: [{ month: M, amounts: { 'Maaş': 990 } }],
-      budgetLines: budgetTemplate(M),
+      budgetLines: sheetPlan(M),
     })
     const summary = summarise(data, M)
     expect(summary.actualIncome).toBe(990)
@@ -100,7 +100,7 @@ describe('spreadsheet fidelity', () => {
 
   it('reproduces the Əlavə məlumatlar SUMIF rollup per category', () => {
     const data = build({
-      budgetLines: budgetTemplate(M),
+      budgetLines: sheetPlan(M),
       transactions: [
         tx({ category: 'Kreditlər', amount: 220 }),
         tx({ category: 'Kreditlər', amount: 35 }),
@@ -119,7 +119,7 @@ describe('spreadsheet fidelity', () => {
 
   it('reports actual spend per category, never invented per line', () => {
     const data = build({
-      budgetLines: budgetTemplate(M),
+      budgetLines: sheetPlan(M),
       transactions: [tx({ category: 'Kreditlər', amount: 100 })],
     })
     const groups = budgetGroups(data, M)
@@ -209,7 +209,7 @@ describe('edge cases', () => {
   })
 
   it('returns zero for a month with no transactions but keeps the plan visible', () => {
-    const data = build({ budgetLines: budgetTemplate(M) })
+    const data = build({ budgetLines: sheetPlan(M) })
     const summary = summarise(data, '2025-11')
     expect(summary.plannedExpenses).toBe(0)
     expect(summary.actualExpenses).toBe(0)
@@ -274,7 +274,7 @@ describe('edge cases', () => {
 describe('editing and deleting', () => {
   const base = build({
     incomePlans: [{ month: M, amounts: { 'Maaş': 990 } }],
-    budgetLines: budgetTemplate(M),
+    budgetLines: sheetPlan(M),
     transactions: [
       { id: 'a', date: `${M}-01`, type: 'income', category: 'Maaş', description: 'Salary', amount: 990 },
       { id: 'b', date: `${M}-03`, type: 'expense', category: 'Əlavə xərclər', description: 'Rent', amount: 230 },

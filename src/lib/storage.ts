@@ -8,13 +8,8 @@
  * local implementation nothing and means adding one did not change the UI.
  */
 
-import { seedData } from './seed'
-import {
-  defaultCategories,
-  isCategoryKind,
-  migrateCategory,
-  migrateIncomePlan,
-} from './types'
+import { categoriesFromData } from './categories'
+import { isCategoryKind, migrateCategory, migrateIncomePlan } from './types'
 import type {
   BudgetLine,
   Category,
@@ -41,11 +36,9 @@ export class LocalStorageRepository implements FinanceRepository {
   async load(): Promise<FinanceData> {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw === null) {
-        const seeded = seedData()
-        await this.save(seeded)
-        return seeded
-      }
+      // Nothing stored means nothing to show. A first run gets an empty
+      // account, not a stranger's categories and plan.
+      if (raw === null) return emptyData
       return normaliseData(JSON.parse(raw))
     } catch {
       // Corrupt or unavailable storage must not brick the app.
@@ -68,7 +61,7 @@ export class LocalStorageRepository implements FinanceRepository {
  */
 export function normaliseData(value: unknown): FinanceData {
   const data = (value ?? {}) as Partial<FinanceData>
-  return {
+  const normalised: FinanceData = {
     transactions: Array.isArray(data.transactions)
       ? data.transactions.map((transaction: Transaction) => ({
           ...transaction,
@@ -84,16 +77,20 @@ export function normaliseData(value: unknown): FinanceData {
     incomePlans: Array.isArray(data.incomePlans)
       ? data.incomePlans.map(migrateIncomePlan)
       : [],
-    // A snapshot saved before categories were editable has none stored, so it
-    // is given the starting set rather than an app with no categories at all.
-    categories:
-      Array.isArray(data.categories) && data.categories.length > 0
-        ? data.categories.map((category: CategoryDef) => ({
-            ...category,
-            name: migrateCategory(category.name),
-            // An unrecognised kind is dropped rather than trusted.
-            kind: isCategoryKind(category.kind) ? category.kind : undefined,
-          }))
-        : defaultCategories(),
+    categories: Array.isArray(data.categories)
+      ? data.categories.map((category: CategoryDef) => ({
+          ...category,
+          name: migrateCategory(category.name),
+          // An unrecognised kind is dropped rather than trusted.
+          kind: isCategoryKind(category.kind) ? category.kind : undefined,
+        }))
+      : [],
   }
+
+  // A snapshot saved before categories were editable has none stored. Its own
+  // rows say which ones it used, and that is what it gets back — an empty
+  // snapshot stays empty.
+  return normalised.categories.length > 0
+    ? normalised
+    : { ...normalised, categories: categoriesFromData(normalised) }
 }

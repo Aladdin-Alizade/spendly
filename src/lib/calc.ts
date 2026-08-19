@@ -7,7 +7,7 @@
 
 import { round2, sum } from './money'
 import { monthOf } from './dates'
-import { EXPENSE_CATEGORIES, plannedIncomeOf } from './types'
+import { plannedIncomeOf } from './types'
 import type {
   BudgetLine,
   ExpenseCategory,
@@ -208,8 +208,9 @@ export function categoryTotals(data: FinanceData, month: MonthKey): CategoryTota
   const lines = budgetLinesInMonth(data.budgetLines, month)
   const totalActual = actualExpenses(data.transactions, month)
 
-  // Include every known category plus any legacy category still present in data.
-  const known = new Set<string>(EXPENSE_CATEGORIES)
+  // Every category the month actually names, whether or not it is still in
+  // the user's list — a category removed after the fact keeps its history.
+  const known = new Set<string>()
   for (const key of spendByCategory.keys()) known.add(key)
   for (const line of lines) known.add(line.category)
 

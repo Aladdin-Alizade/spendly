@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { budgetAdvice, median, robustScore } from '../insights/advice'
-import { defaultCategories } from '../types'
+import { sheetCategories } from './fixtures'
 import type { BudgetLine, FinanceData, Transaction } from '../types'
 
 const M = '2026-08'
@@ -11,7 +11,7 @@ function build(partial: Partial<FinanceData> = {}): FinanceData {
     transactions: [],
     budgetLines: [],
     incomePlans: [],
-    categories: defaultCategories(),
+    categories: sheetCategories(),
     ...partial,
   }
 }

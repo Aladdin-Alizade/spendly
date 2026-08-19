@@ -6,8 +6,8 @@ the app, see the [README](../README.md).
 
 ## Language
 
-The interface is Azerbaijani. Categories and the seeded plan are stored in
-Azerbaijani too, so what is in the database matches what is on screen.
+The interface is Azerbaijani. Categories are stored in Azerbaijani too, so
+what is in the database matches what is on screen.
 
 Categories were previously stored in Russian. `migrateCategory` in
 [`src/lib/types.ts`](../src/lib/types.ts) maps the old names onto the new ones
@@ -63,8 +63,8 @@ order by 1, 3 desc;
 
 Then move the old identity's rows onto the account's id. Do it before making
 any edits under the new account: `categories` is unique on
-`(user_id, type, name)`, so a freshly seeded default set collides with a
-restored one.
+`(user_id, type, name)`, so a category created under the new account collides
+with the restored one of the same name.
 
 ```sql
 update public.transactions set user_id = 'NEW_ID' where user_id = 'OLD_ID';
@@ -108,9 +108,12 @@ Nothing is stored pre-computed and nothing is hard-coded.
 | `F3:F25` | `D - E` | `budgetGroups().variance` (per category) |
 | `Əlavə!C5:C12` | `SUMIF(category, actual)` | `categoryTotals()` |
 
-The seeded plan reproduces the sheet exactly: 16 budget lines totalling
-**1,142.00 ₼**, planned salary **990.00 ₼**, planned remainder **-152.00 ₼**.
-This is asserted in [`src/lib/__tests__/calc.test.ts`](../src/lib/__tests__/calc.test.ts).
+The sheet is kept as test data — [`src/lib/__tests__/fixtures.ts`](../src/lib/__tests__/fixtures.ts)
+— because it is the only set of figures this project has that somebody once
+worked out by hand. Its 16 budget lines total **1,142.00 ₼**, planned salary is
+**990.00 ₼** and the planned remainder **-152.00 ₼**; the calculations are
+asserted against all three in [`src/lib/__tests__/calc.test.ts`](../src/lib/__tests__/calc.test.ts).
+Nothing ships it to an account.
 
 ## What changed, and why
 
@@ -120,7 +123,8 @@ column derived, and the dates then support a month-over-month trend.
 
 **Added — a month switcher**, replacing one spreadsheet file per month.
 "Carry over plan" copies the previous month's lines and income plan forward,
-since the lines recur.
+since the lines recur. With no earlier month there is nothing to carry, so the
+offer is not made — a first month is written from scratch.
 
 **Removed — the three-tab split, the SUMIF helper tab, and the category
 master-list column.** These were spreadsheet plumbing, not information.
@@ -212,8 +216,17 @@ panel it appears in.
 ## Categories
 
 Categories used to be a hard-coded list. They are data now: `FinanceData.categories`
-holds them, the Budget screen creates, renames and removes them, and a new
-account is seeded with the sheet's original set.
+holds them, and the Budget screen creates, renames and removes them.
+
+**A new account holds none.** Categories, and the plan written against them,
+are the shape somebody gives their own money; handing a stranger one
+household's list of them names their spending for them and puts figures in
+their budget that were never theirs. So the app seeds nothing, and every
+category in an account was made by its owner. The one exception is repair,
+not seeding: a snapshot saved before categories were records of their own has
+no list, so [`categoriesFromData`](../src/lib/categories.ts) reads back the names
+its own rows already use. A snapshot with no rows implies nothing, which is
+what a new account is.
 
 Everything else references a category **by name**, the way the spreadsheet did
 and the way every stored row already reads. So a rename is not an edit to one
@@ -243,7 +256,7 @@ category left the plan showing two names that no longer existed.
 `IncomePlan.amounts` is a figure per income category now, and a rename carries
 the planned figure with it the same way it carries transactions. Plans saved in
 the old shape are read through `migrateIncomePlan`, which files the two figures
-under the two categories an account is seeded with.
+under the two categories that shape stood for.
 
 A figure whose category has since gone is **shown, not dropped** — as its own
 line marked `kateqoriya silinib`, and editable so it can be cleared on purpose.
@@ -255,7 +268,7 @@ which is how a planned amount goes missing without anyone being told.
 ```
 src/
   lib/               types, money, dates, calc, period, analytics,
-                     categories, validation, storage, seed
+                     categories, validation, storage
   store/             FinanceProvider — the only stateful layer
   components/        list, dialogs (transaction, budget line, income plan,
                      category, drill-down), month switcher, primitives

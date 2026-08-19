@@ -3,9 +3,9 @@ import { hasErrors, validateTransaction } from '../validate'
 import type { TransactionInput } from '../validate'
 import { categoryNames } from '../categories'
 import { emptyData } from '../storage'
-import { defaultCategories } from '../types'
+import { sheetCategories } from './fixtures'
 
-const data = { ...emptyData, categories: defaultCategories() }
+const data = { ...emptyData, categories: sheetCategories() }
 const EXPENSES = categoryNames(data, 'expense')
 const INCOMES = categoryNames(data, 'income')
 

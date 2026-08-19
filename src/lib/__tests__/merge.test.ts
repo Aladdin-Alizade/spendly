@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { hasPendingWork, mergeFinanceData, mergeRows } from '../merge'
-import { defaultCategories } from '../types'
+import { sheetCategories } from './fixtures'
 import type { CategoryDef, FinanceData, Transaction } from '../types'
 
 const tx = (id: string, amount = 10, description = 'Test'): Transaction => ({
@@ -84,7 +84,7 @@ describe('mergeFinanceData', () => {
       { id: 'b1', month: '2026-08', description: 'Ev', category: 'Əlavə xərclər', planned: 230 },
     ],
     incomePlans: [{ month: '2026-08', amounts: { 'Maaş': 990 } }],
-    categories: defaultCategories(),
+    categories: sheetCategories(),
   }
 
   it('merges every collection, each by its own identity', () => {
@@ -156,7 +156,7 @@ describe('the same category under two ids', () => {
   })
 
   it('resolves it in favour of the server', () => {
-    // A browser that never synced seeded its own starting set; the account was
+    // A browser that never synced made its own categories; the account was
     // used elsewhere first and holds the same names under other ids. Sending
     // both is what the server rejects outright.
     const merged = mergeFinanceData(

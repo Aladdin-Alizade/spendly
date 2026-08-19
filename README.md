@@ -31,6 +31,22 @@ Then open **http://localhost:5180**.
 That is enough to use it. Data is saved in your browser until you connect a
 database — see [Where your data lives](#where-your-data-lives).
 
+### Your first few minutes
+
+A new account is **empty** — no categories, no plan, no example figures.
+Categories are how you decide to think about your own money, so the app does
+not decide for you.
+
+1. **Büdcə → Kateqoriyalar → + Kateqoriya əlavə et.** Make the handful you
+   actually use, on both sides: what you earn (`Maaş`), and what you spend on
+   (`Ərzaq`, `Nəqliyyat`, `Kirayə`…). More can be added at any time.
+2. **Büdcə → Sətir əlavə et** for what you plan to spend this month, and
+   **Planlaşdırılan gəlir → Dəyiş** for what you expect to earn.
+3. **Əlavə et** in the header to record what you actually earn and spend.
+
+From the second month on, **Planı köçür** copies the previous month's plan
+forward, so step 2 is one tap.
+
 ---
 
 ## The three screens
@@ -118,7 +134,7 @@ What the month is *supposed* to look like:
 | Change or remove one entry | Tap it → edit, or **Sil** → **Silinməni təsdiqlə** |
 | Look at another month | The month arrows in the header |
 | Look at a longer stretch | The period buttons on İcmal: **Bu ay · Keçən ay · 3 ay · 6 ay · Bu il** |
-| Start planning a month | **Büdcə** → **Planı köçür** to copy last month's plan forward |
+| Start planning a month | **Büdcə** → **Planı köçür** to copy last month's plan forward (from your second month on) |
 | Add a planned expense | **Büdcə** → **Sətir əlavə et** |
 | Set expected income | **Büdcə** → **Planlaşdırılan gəlir** → **Dəyiş** |
 | Add a category | **Büdcə** → **Kateqoriyalar** → **+ Kateqoriya əlavə et** |
@@ -233,7 +249,8 @@ names the step that fixes it. Your change is saved either way.
 
 **"The dashboard is nearly empty."** Panels hide themselves when there is no
 data behind them. A month with no transactions and no plan has three. Add a
-plan (**Büdcə** → **Planı köçür**) and a few transactions and the rest appear.
+plan (**Büdcə** → **Sətir əlavə et**, or **Planı köçür** once there is an
+earlier month) and a few transactions and the rest appear.
 `Müqayisə` also needs the *previous* period to have transactions in it.
 
 **"A planned amount is under a category I deleted."** It shows as its own line

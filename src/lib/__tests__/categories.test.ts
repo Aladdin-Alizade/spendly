@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   addCategory,
+  categoriesFromData,
   categoriesOfType,
   categoryNames,
   categoryUsage,
@@ -260,5 +261,71 @@ describe('income categories and the planned-income figures', () => {
   it('leaves expense renames out of the income plan entirely', () => {
     const next = renameCategory(planned, 'c1', 'Yemək')
     expect(next.incomePlans).toEqual(planned.incomePlans)
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * Categories implied by the data itself
+ * ------------------------------------------------------------------ */
+
+describe('categoriesFromData', () => {
+  it('gives a new account nothing, because it has nothing', () => {
+    expect(categoriesFromData(build({ categories: [] }))).toEqual([])
+  })
+
+  it('reads the categories a stored history already names', () => {
+    const data = build({
+      categories: [],
+      transactions: [
+        tx({ category: 'Ərzaq' }),
+        tx({ category: 'Nəqliyyat' }),
+        tx({ type: 'income', category: 'Maaş' }),
+      ],
+    })
+
+    expect(categoriesFromData(data)).toEqual([
+      { id: 'expense-0', name: 'Ərzaq', type: 'expense' },
+      { id: 'expense-1', name: 'Nəqliyyat', type: 'expense' },
+      { id: 'income-0', name: 'Maaş', type: 'income' },
+    ])
+  })
+
+  it('files a budget line under expenses and a planned figure under income', () => {
+    const data = build({
+      categories: [],
+      budgetLines: [
+        { id: 'b1', month: M, description: 'Ev', category: 'Kirayə', planned: 230 },
+      ],
+      incomePlans: [{ month: M, amounts: { Mentorluq: 200 } }],
+    })
+
+    expect(categoriesFromData(data)).toEqual([
+      { id: 'expense-0', name: 'Kirayə', type: 'expense' },
+      { id: 'income-0', name: 'Mentorluq', type: 'income' },
+    ])
+  })
+
+  it('names a category once, however many rows use it', () => {
+    const data = build({
+      categories: [],
+      transactions: [tx({ category: 'Ərzaq' }), tx({ category: ' ərzaq ' })],
+    })
+
+    expect(categoriesFromData(data)).toHaveLength(1)
+  })
+
+  it('keeps the same name on both sides of the ledger apart', () => {
+    const data = build({
+      categories: [],
+      transactions: [
+        tx({ category: 'Bonus' }),
+        tx({ type: 'income', category: 'Bonus' }),
+      ],
+    })
+
+    expect(categoriesFromData(data).map((category) => category.type)).toEqual([
+      'expense',
+      'income',
+    ])
   })
 })

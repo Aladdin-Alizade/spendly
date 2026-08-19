@@ -42,6 +42,39 @@ export function categoryUsage(data: FinanceData, name: string): CategoryUsage {
   }
 }
 
+/**
+ * The categories a stored snapshot implies, for data written before categories
+ * were records of their own.
+ *
+ * Nothing is invented here. Every name comes from a row that is already in the
+ * data, so an account whose history predates the category list gets its own
+ * list back rather than the app's idea of one — and a snapshot with no rows
+ * implies no categories, which is exactly what a new account is.
+ */
+export function categoriesFromData(data: FinanceData): CategoryDef[] {
+  const names = { expense: [] as string[], income: [] as string[] }
+
+  const add = (type: TransactionType, name: string) => {
+    const trimmed = name.trim()
+    if (trimmed === '') return
+    const seen = names[type].some(
+      (existing) => existing.toLowerCase() === trimmed.toLowerCase(),
+    )
+    if (!seen) names[type].push(trimmed)
+  }
+
+  for (const transaction of data.transactions) add(transaction.type, transaction.category)
+  // A budget line is always an expense; a planned income figure always income.
+  for (const line of data.budgetLines) add('expense', line.category)
+  for (const plan of data.incomePlans) {
+    for (const name of Object.keys(plan.amounts)) add('income', name)
+  }
+
+  return (['expense', 'income'] as TransactionType[]).flatMap((type) =>
+    names[type].map((name, index) => ({ id: `${type}-${index}`, name, type })),
+  )
+}
+
 /** Categories of one side of the ledger, in the order they were added. */
 export function categoriesOfType(
   data: FinanceData,

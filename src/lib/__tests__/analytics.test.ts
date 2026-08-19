@@ -17,7 +17,7 @@ import {
 import { PERIODS, comparisonLabel, previousPeriod, resolvePeriod } from '../period'
 import { sum } from '../money'
 import { formatMonthShort } from '../dates'
-import { defaultCategories } from '../types'
+import { sheetCategories } from './fixtures'
 import type { FinanceData, Transaction } from '../types'
 
 const ANCHOR = '2026-08'
@@ -27,7 +27,7 @@ function build(partial: Partial<FinanceData> = {}): FinanceData {
     transactions: [],
     budgetLines: [],
     incomePlans: [],
-    categories: defaultCategories(),
+    categories: sheetCategories(),
     ...partial,
   }
 }

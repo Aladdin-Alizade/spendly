@@ -36,8 +36,8 @@ export function mergeFinanceData(
 /**
  * Two ids, one category.
  *
- * A browser that has never synced holds the starting set it seeded for itself,
- * with ids of its own making. An account that was used elsewhere first holds
+ * A browser that has never synced holds the categories it was given here,
+ * under ids of its own making. An account that was used elsewhere first holds
  * the same names under different ids. Merging by id alone keeps both, and the
  * server rejects the pair outright — a category is unique per (user, type,
  * name) there, which is the rule that makes a rename possible at all.

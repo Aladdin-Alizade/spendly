@@ -201,6 +201,15 @@ export function TransactionDialog({
                   ))}
                 </select>
               </div>
+              {/* An account starts with no categories at all, so an empty list
+                  is a normal first step rather than a mistake. Saying where
+                  they are made beats a select with nothing in it. */}
+              {options.length === 0 && (
+                <p className="field-hint">
+                  {input.type === 'income' ? 'Gəlir' : 'Xərc'} kateqoriyası hələ
+                  yoxdur. Büdcə səhifəsində əlavə edin.
+                </p>
+              )}
             </div>
 
             <div className="field">

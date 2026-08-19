@@ -40,6 +40,9 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
   const plan = data.incomePlans.find((entry) => entry.month === month)
   const incomeCategories = categoriesOfType(data, 'income')
   const incomeRows = plannedIncomeRows(incomeCategories, plan?.amounts ?? {})
+  // Carrying the plan over needs a plan to carry. With no earlier month there
+  // is nothing to copy, so the offer is not made.
+  const hasPriorPlan = data.budgetLines.some((line) => line.month < month)
 
   return (
     <>
@@ -91,19 +94,25 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
           <div className="card">
             <EmptyState
               title={`${formatMonth(month)} üçün plan yoxdur`}
-              body="Keçən ayın planını köçürün və ya sıfırdan başlayın."
+              body={
+                hasPriorPlan
+                  ? 'Keçən ayın planını köçürün və ya sıfırdan başlayın.'
+                  : 'Planlaşdırdığınız xərcləri sətir-sətir əlavə edin.'
+              }
               action={
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                  {hasPriorPlan && (
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      onClick={() => applyTemplate(month)}
+                    >
+                      Planı köçür
+                    </button>
+                  )}
                   <button
                     type="button"
-                    className="button button-primary"
-                    onClick={() => applyTemplate(month)}
-                  >
-                    Planı köçür
-                  </button>
-                  <button
-                    type="button"
-                    className="button"
+                    className={hasPriorPlan ? 'button' : 'button button-primary'}
                     onClick={() => setEditing('new')}
                   >
                     Sətir əlavə et

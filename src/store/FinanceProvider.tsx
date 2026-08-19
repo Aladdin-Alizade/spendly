@@ -11,7 +11,6 @@ import type { ReactNode } from 'react'
 import { LocalStorageRepository, emptyData } from '../lib/storage'
 import type { FinanceRepository } from '../lib/storage'
 import { round2 } from '../lib/money'
-import { budgetTemplate } from '../lib/seed'
 import { describeError } from '../lib/setupHints'
 import { SyncingRepository } from '../lib/syncingRepository'
 import type { SyncState } from '../lib/syncingRepository'
@@ -292,22 +291,22 @@ export function FinanceProvider({
           if (previous.budgetLines.some((line) => line.month === month)) {
             return previous
           }
-          // Carry forward the most recent month's plan, or the sheet's original.
+          // Carry the most recent month's plan forward. There is nothing else
+          // to carry: an account holds only the plan its owner wrote, so with
+          // no earlier month this does nothing rather than inventing one.
           const priorMonths = [
             ...new Set(previous.budgetLines.map((line) => line.month)),
           ]
             .filter((candidate) => candidate < month)
             .sort()
           const source = priorMonths.at(-1)
-          const lines = source
-            ? previous.budgetLines
-                .filter((line) => line.month === source)
-                .map((line) => ({ ...line, id: nextId(), month }))
-            : budgetTemplate(month)
+          if (!source) return previous
 
-          const priorPlan = source
-            ? previous.incomePlans.find((plan) => plan.month === source)
-            : undefined
+          const lines = previous.budgetLines
+            .filter((line) => line.month === source)
+            .map((line) => ({ ...line, id: nextId(), month }))
+
+          const priorPlan = previous.incomePlans.find((plan) => plan.month === source)
 
           return {
             ...previous,

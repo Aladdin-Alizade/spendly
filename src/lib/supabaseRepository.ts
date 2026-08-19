@@ -10,12 +10,8 @@
  */
 
 import { supabase, currentUserId } from './supabase'
-import {
-  defaultCategories,
-  isCategoryKind,
-  migrateCategory,
-  migrateIncomePlan,
-} from './types'
+import { isCategoryKind, migrateCategory, migrateIncomePlan } from './types'
+import { categoriesFromData } from './categories'
 import { emptyData } from './storage'
 import type { FinanceRepository } from './storage'
 import type {
@@ -27,6 +23,18 @@ import type {
 } from './types'
 
 type Row = Record<string, unknown>
+
+/**
+ * Ids are minted here, in the browser, so they are only unique to one person.
+ * They were not even that once: accounts made while the app handed out a
+ * starting set of categories and a plan template all carry the same ids for
+ * those rows, and those accounts still exist. The tables are keyed on
+ * (user_id, id) for that reason, and every upsert says so, so a write is only
+ * ever matched against a row this account owns. Matched against somebody
+ * else's, it fails as a row level security violation — the row it collided
+ * with is one the policies hide — and no edit gets saved.
+ */
+const BY_OWNER = { onConflict: 'user_id,id' } as const
 
 export class SupabaseRepository implements FinanceRepository {
   /** The last snapshot known to be persisted, used to diff the next one. */
@@ -50,15 +58,18 @@ export class SupabaseRepository implements FinanceRepository {
       transactions.error ?? budgetLines.error ?? incomePlans.error ?? categories.error
     if (failure) throw failure
 
-    const stored = (categories.data ?? []).map(toCategory)
-
     const data: FinanceData = {
       transactions: (transactions.data ?? []).map(toTransaction),
       budgetLines: (budgetLines.data ?? []).map(toBudgetLine),
       incomePlans: (incomePlans.data ?? []).map(toIncomePlan),
-      // An account created before categories were stored has none; it gets the
-      // starting set, which the next save then persists.
-      categories: stored.length > 0 ? stored : defaultCategories(),
+      categories: (categories.data ?? []).map(toCategory),
+    }
+
+    // An account created before categories were stored has none of its own.
+    // Its rows name the categories it used, so those come back and the next
+    // save persists them. A new account has no rows either, and stays empty.
+    if (data.categories.length === 0) {
+      data.categories = categoriesFromData(data)
     }
 
     this.previous = data
@@ -104,7 +115,7 @@ export class SupabaseRepository implements FinanceRepository {
       note: t.note ?? null,
     }))
     if (txChanged.upserts.length) {
-      jobs.push(client.from('transactions').upsert(txChanged.upserts))
+      jobs.push(client.from('transactions').upsert(txChanged.upserts, BY_OWNER))
     }
     if (txChanged.removed.length) {
       jobs.push(client.from('transactions').delete().in('id', txChanged.removed))
@@ -120,7 +131,7 @@ export class SupabaseRepository implements FinanceRepository {
       planned: l.planned,
     }))
     if (lineChanged.upserts.length) {
-      jobs.push(client.from('budget_lines').upsert(lineChanged.upserts))
+      jobs.push(client.from('budget_lines').upsert(lineChanged.upserts, BY_OWNER))
     }
     if (lineChanged.removed.length) {
       jobs.push(client.from('budget_lines').delete().in('id', lineChanged.removed))
@@ -135,7 +146,7 @@ export class SupabaseRepository implements FinanceRepository {
       kind: c.kind ?? null,
     }))
     if (categoryChanged.upserts.length) {
-      jobs.push(client.from('categories').upsert(categoryChanged.upserts))
+      jobs.push(client.from('categories').upsert(categoryChanged.upserts, BY_OWNER))
     }
     if (categoryChanged.removed.length) {
       jobs.push(client.from('categories').delete().in('id', categoryChanged.removed))
