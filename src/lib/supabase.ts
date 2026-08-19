@@ -36,11 +36,37 @@ export const supabase = isSupabaseConfigured
  * ties the data to something the user can present from any browser.
  */
 
-/** The signed-in user's id, or null when nobody is signed in. */
-export async function currentUserId(): Promise<string | null> {
+/** What the app shows about the person signed in. Nothing else is read. */
+export interface AccountUser {
+  id: string
+  email: string | null
+  /** ISO timestamp the account was created. */
+  createdAt: string | null
+}
+
+/** The signed-in user, or null when nobody is signed in. */
+export async function currentUser(): Promise<AccountUser | null> {
   if (!supabase) return null
   const { data } = await supabase.auth.getSession()
-  return data.session?.user.id ?? null
+  return toAccountUser(data.session?.user ?? null)
+}
+
+/** The signed-in user's id, or null when nobody is signed in. */
+export async function currentUserId(): Promise<string | null> {
+  return (await currentUser())?.id ?? null
+}
+
+function toAccountUser(user: {
+  id: string
+  email?: string
+  created_at?: string
+} | null): AccountUser | null {
+  if (!user) return null
+  return {
+    id: user.id,
+    email: user.email ?? null,
+    createdAt: user.created_at ?? null,
+  }
 }
 
 export interface SignUpResult {
@@ -70,10 +96,10 @@ export async function signOut(): Promise<void> {
 }
 
 /** Fires on sign-in, sign-out and token refresh. Returns an unsubscribe. */
-export function onAuthChange(listener: (userId: string | null) => void): () => void {
+export function onAuthChange(listener: (user: AccountUser | null) => void): () => void {
   if (!supabase) return () => {}
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-    listener(session?.user.id ?? null)
+    listener(toAccountUser(session?.user ?? null))
   })
   return () => data.subscription.unsubscribe()
 }

@@ -1,13 +1,14 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  currentUserId,
+  currentUser,
   isSupabaseConfigured,
   onAuthChange,
   signIn as signInRequest,
   signOut as signOutRequest,
   signUp as signUpRequest,
 } from '../lib/supabase'
+import type { AccountUser } from '../lib/supabase'
 import { authErrorMessage } from '../lib/credentials'
 
 export type AuthStatus = 'loading' | 'signed-out' | 'signed-in' | 'not-required'
@@ -16,6 +17,8 @@ interface AuthContextValue {
   status: AuthStatus
   /** The signed-in user's id. Data is reloaded when this changes. */
   userId: string | null
+  /** Who is signed in, for the profile. Null in local-storage mode. */
+  user: AccountUser | null
   /** Set after a sign-up that needs the address confirmed before signing in. */
   notice: string | null
   signIn(email: string, password: string): Promise<void>
@@ -36,25 +39,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>(
     isSupabaseConfigured ? 'loading' : 'not-required',
   )
-  const [userId, setUserId] = useState<string | null>(null)
+  const [user, setUser] = useState<AccountUser | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
 
     let cancelled = false
-    currentUserId().then((id) => {
+    currentUser().then((account) => {
       if (cancelled) return
-      setUserId(id)
-      setStatus(id ? 'signed-in' : 'signed-out')
+      setUser(account)
+      setStatus(account ? 'signed-in' : 'signed-out')
     })
 
     // Covers a token refresh, a sign-out in another tab, and an expired
     // session, so the app cannot keep showing data for a session that ended.
-    const unsubscribe = onAuthChange((id) => {
-      setUserId(id)
-      setStatus(id ? 'signed-in' : 'signed-out')
-      if (id) setNotice(null)
+    const unsubscribe = onAuthChange((account) => {
+      setUser(account)
+      setStatus(account ? 'signed-in' : 'signed-out')
+      if (account) setNotice(null)
     })
 
     return () => {
@@ -66,7 +69,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       status,
-      userId,
+      userId: user?.id ?? null,
+      user,
       notice,
 
       async signIn(email, password) {
@@ -96,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await signOutRequest()
       },
     }),
-    [status, userId, notice],
+    [status, user, notice],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

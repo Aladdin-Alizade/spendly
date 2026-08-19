@@ -116,6 +116,8 @@ What the month is *supposed* to look like:
 | Delete a category | Tap it → **Sil** |
 | Wipe one month's plan | **Büdcə** → **Silmə** → **Planı sil** → **Təsdiqlə** |
 | Wipe everything | **Büdcə** → **Silmə** → **Bütün məlumatları sil** |
+| See my account | The round button at the top right |
+| Sign out | The same button → **Çıxış** |
 
 Every destructive action needs a second click to confirm.
 

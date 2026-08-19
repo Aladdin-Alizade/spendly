@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { MonthSwitcher } from './components/MonthSwitcher'
 import { TransactionDialog } from './components/TransactionDialog'
+import { ProfileDialog } from './components/ProfileDialog'
 import { Dashboard } from './screens/Dashboard'
 import { Transactions } from './screens/Transactions'
 import { Budget } from './screens/Budget'
@@ -36,6 +37,7 @@ export function App() {
   const [screen, setScreen] = useState<Screen>('dashboard')
   const [month, setMonth] = useState<MonthKey>(currentMonth())
   const [editing, setEditing] = useState<Transaction | 'new' | null>(null)
+  const [profileOpen, setProfileOpen] = useState(false)
 
   const months = knownMonths(data, currentMonth())
 
@@ -78,7 +80,7 @@ export function App() {
           >
             Əlavə et
           </button>
-          <SignOutButton />
+          <AccountButton onOpen={() => setProfileOpen(true)} />
         </div>
       </header>
 
@@ -111,6 +113,8 @@ export function App() {
         +
       </button>
 
+      {profileOpen && <ProfileDialog onClose={() => setProfileOpen(false)} />}
+
       {editing !== null && (
         <TransactionDialog
           transaction={editing === 'new' ? null : editing}
@@ -142,19 +146,24 @@ export function App() {
 }
 
 
-/** Present only when there is an account to leave; in local-storage mode
- *  there is nobody signed in. */
-function SignOutButton() {
-  const { status, signOut } = useAuth()
-  if (status !== 'signed-in') return null
+/**
+ * The way into the profile. It shows the account's initial when there is one
+ * and a neutral mark otherwise, so local-storage mode still has somewhere to
+ * see what is stored.
+ */
+function AccountButton({ onOpen }: { onOpen: () => void }) {
+  const { status, user } = useAuth()
+  const initial = user?.email?.slice(0, 1).toUpperCase() ?? '·'
 
   return (
     <button
       type="button"
-      className="button button-quiet hide-mobile"
-      onClick={() => void signOut()}
+      className="account-button"
+      onClick={onOpen}
+      aria-label="Profil"
+      title={status === 'signed-in' ? (user?.email ?? 'Profil') : 'Profil'}
     >
-      Çıxış
+      {initial}
     </button>
   )
 }
