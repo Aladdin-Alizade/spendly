@@ -41,6 +41,22 @@ export const CATEGORY_KINDS: CategoryKind[] = [
 ]
 
 /**
+ * The kinds a category can still be given.
+ *
+ * `saving` is missing on purpose. Money set aside is not spending, and it has
+ * its own records now — a pot and the movements into it. Offering it here as
+ * well would give one act two homes: the same 400 manat could be a spending
+ * category on this screen and a deposit on the other, and no reader of either
+ * screen could tell which. Categories written before the pots existed keep the
+ * kind, so nothing already recorded changes meaning or falls out of a total.
+ */
+export const SELECTABLE_CATEGORY_KINDS: CategoryKind[] = [
+  'essential',
+  'discretionary',
+  'debt',
+]
+
+/**
  * A category is referenced by name, the way the spreadsheet did it and the way
  * every stored row already does. The id exists so a rename is an edit to one
  * record rather than a new category, and so the name can change without the
@@ -176,9 +192,81 @@ export function plannedIncomeOf(plan: IncomePlan | undefined): number {
   return Object.values(plan.amounts).reduce((total, amount) => total + amount, 0)
 }
 
+/**
+ * Money set aside is a third flow, not a kind of spending.
+ *
+ * Recording it as an expense was the obvious shortcut and it breaks in two
+ * places: the money looks consumed when it is only moved, and money that
+ * arrives from outside a salary has nowhere to go but income, where it
+ * inflates every share the frameworks report. So deposits and withdrawals are
+ * their own records, and each deposit says where the money came from.
+ */
+export type SavingsDirection = 'in' | 'out'
+
+/**
+ *   income   — set aside out of money the household already earned. It leaves
+ *              the spendable side, which is why it is not spending.
+ *   external — arrived from outside and went straight to the pot: a gift, a
+ *              sale, a repaid loan. It was never spendable, so it touches
+ *              neither income nor spending, only the pot.
+ */
+export type SavingsSource = 'income' | 'external'
+
+/**
+ * A pot is a goal with a name. It is referenced by name for the same reason a
+ * category is — that is how every other row in this app reads — and the id is
+ * here so a rename stays one record.
+ */
+export interface SavingsPot {
+  id: string
+  name: string
+  /** What the pot is being filled towards. Unset means no target, and the
+   *  screens then report the balance without pretending to know a finish line. */
+  target?: number
+}
+
+/** One movement into or out of a pot. Always positive; direction carries the
+ *  sign, exactly as it does for a transaction. */
+export interface SavingsEntry {
+  id: string
+  date: DateKey
+  /** The pot's name, as it stood when this was written. A rename carries it. */
+  pot: string
+  amount: number
+  direction: SavingsDirection
+  /** Where a deposit came from. Unset on a withdrawal, which has no source. */
+  source?: SavingsSource
+  note?: string
+}
+
+export function isSavingsDirection(value: unknown): value is SavingsDirection {
+  return value === 'in' || value === 'out'
+}
+
+export function isSavingsSource(value: unknown): value is SavingsSource {
+  return value === 'income' || value === 'external'
+}
+
+/**
+ * What somebody means to put away this month, per pot — the savings side of
+ * the plan, shaped exactly like the income side.
+ *
+ * It exists because a target on a pot answers "how much in the end", not "how
+ * much this month". Planning the deposit is what turns saving from whatever
+ * happens to be left over into a line of the budget like any other.
+ */
+export interface SavingsPlan {
+  month: MonthKey
+  /** Planned amount per pot name, as {"Ehtiyat fondu": 400}. */
+  amounts: Record<string, number>
+}
+
 export interface FinanceData {
   transactions: Transaction[]
   budgetLines: BudgetLine[]
   incomePlans: IncomePlan[]
   categories: CategoryDef[]
+  savingsPots: SavingsPot[]
+  savingsEntries: SavingsEntry[]
+  savingsPlans: SavingsPlan[]
 }

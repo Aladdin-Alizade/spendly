@@ -21,6 +21,7 @@ import {
   plannedExpenses,
   transactionsInMonth,
 } from './calc'
+import { spendableDeltaOf } from './savings'
 import type { Period } from './period'
 import { previousPeriod } from './period'
 import { plannedIncomeOf } from './types'
@@ -250,11 +251,16 @@ export function flowBuckets(data: FinanceData, period: Period): FlowBucket[] {
 
 function monthlyBuckets(data: FinanceData, months: MonthKey[]): FlowBucket[] {
   // Balance carried in from before the period, so the line starts truthfully.
-  let balance = openingBalance(data.transactions, months[0])
+  let balance = openingBalance(data, months[0])
   return months.map((month) => {
     const income = actualIncome(data.transactions, month)
     const expenses = actualExpenses(data.transactions, month)
-    balance = round2(balance + income - expenses)
+    // Money moved to or from a pot is not income or spending, so it is not in
+    // either bar — but it does move the balance, so it is in the line.
+    const moved = spendableDeltaOf(
+      data.savingsEntries.filter((entry) => monthOf(entry.date) === month),
+    )
+    balance = round2(balance + income - expenses + moved)
     return {
       key: month,
       label: formatMonthShort(month),
@@ -269,22 +275,32 @@ function monthlyBuckets(data: FinanceData, months: MonthKey[]): FlowBucket[] {
 function weeklyBuckets(data: FinanceData, month: MonthKey): FlowBucket[] {
   const last = daysInMonth(month)
   const edges = [1, 8, 15, 22]
-  let balance = openingBalance(data.transactions, month)
+  let balance = openingBalance(data, month)
   const transactions = transactionsInMonth(data.transactions, month)
+  const entries = data.savingsEntries.filter(
+    (entry) => monthOf(entry.date) === month,
+  )
+  const dayOf = (date: string) => Number(date.slice(8, 10))
 
   return edges.map((start, index) => {
     const end = index === edges.length - 1 ? last : edges[index + 1] - 1
     const inRange = transactions.filter((transaction) => {
-      const day = Number(transaction.date.slice(8, 10))
+      const day = dayOf(transaction.date)
       return day >= start && day <= end
     })
+    const moved = spendableDeltaOf(
+      entries.filter((entry) => {
+        const day = dayOf(entry.date)
+        return day >= start && day <= end
+      }),
+    )
     const income = sum(
       inRange.filter((t) => t.type === 'income').map((t) => t.amount),
     )
     const expenses = sum(
       inRange.filter((t) => t.type === 'expense').map((t) => t.amount),
     )
-    balance = round2(balance + income - expenses)
+    balance = round2(balance + income - expenses + moved)
     return {
       key: `w${index + 1}`,
       label: `${start}–${end}`,
@@ -295,13 +311,19 @@ function weeklyBuckets(data: FinanceData, month: MonthKey): FlowBucket[] {
   })
 }
 
-/** Net of everything strictly before `month`. */
-function openingBalance(transactions: Transaction[], month: MonthKey): number {
-  return sum(
-    transactions
-      .filter((transaction) => monthOf(transaction.date) < month)
-      .map((transaction) =>
-        transaction.type === 'income' ? transaction.amount : -transaction.amount,
+/** Net of everything strictly before `month`, savings movements included, so
+ *  the line starts where the balance on screen actually stands. */
+function openingBalance(data: FinanceData, month: MonthKey): number {
+  return round2(
+    sum(
+      data.transactions
+        .filter((transaction) => monthOf(transaction.date) < month)
+        .map((transaction) =>
+          transaction.type === 'income' ? transaction.amount : -transaction.amount,
+        ),
+    ) +
+      spendableDeltaOf(
+        data.savingsEntries.filter((entry) => monthOf(entry.date) < month),
       ),
   )
 }

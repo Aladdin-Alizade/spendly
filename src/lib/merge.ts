@@ -16,7 +16,7 @@
  * not seen yet, which is why it is stored rather than recomputed.
  */
 
-import type { CategoryDef, FinanceData } from './types'
+import type { CategoryDef, FinanceData, SavingsPot } from './types'
 
 export function mergeFinanceData(
   base: FinanceData,
@@ -30,7 +30,34 @@ export function mergeFinanceData(
     categories: dedupeCategories(
       mergeRows(base.categories, local.categories, remote.categories, (c) => c.id),
     ),
+    savingsPots: dedupePots(
+      mergeRows(base.savingsPots, local.savingsPots, remote.savingsPots, (p) => p.id),
+    ),
+    savingsEntries: mergeRows(
+      base.savingsEntries,
+      local.savingsEntries,
+      remote.savingsEntries,
+      (e) => e.id,
+    ),
+    savingsPlans: mergeRows(
+      base.savingsPlans,
+      local.savingsPlans,
+      remote.savingsPlans,
+      (p) => p.month,
+    ),
   }
+}
+
+/** Two ids, one pot — the same collision categories have, for the same reason:
+ *  a pot is unique by name on the server, and every entry names its pot. */
+function dedupePots(pots: SavingsPot[]): SavingsPot[] {
+  const seen = new Set<string>()
+  return pots.filter((pot) => {
+    const key = pot.name.trim().toLowerCase()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 /**

@@ -3,7 +3,7 @@ import { formatAZN } from '../lib/money'
 import { formatMonth } from '../lib/dates'
 import { knownMonths } from '../lib/calc'
 import { categoriesOfType } from '../lib/categories'
-import { runningBalance } from '../lib/calc'
+import { totalHoldings } from '../lib/calc'
 import { useAuth } from '../store/AuthProvider'
 import { useFinance } from '../store/FinanceProvider'
 import {
@@ -134,7 +134,7 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
             <Stat label="Kateqoriya" value={String(data.categories.length)} />
             <Stat
               label="Balans"
-              value={formatAZN(runningBalance(data.transactions))}
+              value={formatAZN(totalHoldings(data))}
             />
           </div>
 

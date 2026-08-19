@@ -20,11 +20,19 @@ import {
   renameCategory as renameCategoryIn,
   setCategoryKind as setCategoryKindIn,
 } from '../lib/categories'
+import {
+  addPot as addPotTo,
+  convertSavingTransactions,
+  removePot as removePotFrom,
+  renamePot as renamePotIn,
+  setPotTarget as setPotTargetIn,
+} from '../lib/savings'
 import type {
   BudgetLine,
   CategoryKind,
   FinanceData,
   MonthKey,
+  SavingsEntry,
   Transaction,
   TransactionType,
 } from '../lib/types'
@@ -55,6 +63,8 @@ interface FinanceContextValue {
   /** Remove every planned line for one month, leaving its transactions alone. */
   clearMonthPlan(month: MonthKey): void
   setIncomePlan(month: MonthKey, amounts: Record<string, number>): void
+  /** What to put away this month, per pot. Plans nothing else. */
+  setSavingsPlan(month: MonthKey, amounts: Record<string, number>): void
   addCategory(name: string, type: TransactionType, kind?: CategoryKind): void
   /** Set or clear what a category is for. Touches no amount. */
   setCategoryKind(id: string, kind: CategoryKind | undefined): void
@@ -65,6 +75,20 @@ interface FinanceContextValue {
   removeCategory(id: string, reassignTo?: string): void
   /** Copy the recurring plan into a month that has none yet. */
   applyTemplate(month: MonthKey): void
+  addSavingsPot(name: string, target?: number): void
+  /** Renames the pot and every entry that named it, in one change. */
+  renameSavingsPot(id: string, name: string): void
+  /** Set or clear what the pot is being filled towards. Moves no money. */
+  setSavingsPotTarget(id: string, target: number | undefined): void
+  /** `reassignTo` is the pot anything still in this one moves to. A pot that
+   *  still holds entries and has nowhere to send them is left alone. */
+  removeSavingsPot(id: string, reassignTo?: string): void
+  addSavingsEntry(entry: Omit<SavingsEntry, 'id'>): void
+  updateSavingsEntry(id: string, patch: Omit<SavingsEntry, 'id'>): void
+  removeSavingsEntry(id: string): void
+  /** Turn savings recorded the old way — as spending into a category marked
+   *  `saving` — into pot deposits. The expenses go, so nothing counts twice. */
+  convertSavingsFromTransactions(): void
   /** Delete every transaction, plan and budget line. Not reversible. */
   resetAll(): void
 }
@@ -259,6 +283,10 @@ export function FinanceProvider({
           ...previous,
           budgetLines: previous.budgetLines.filter((line) => line.month !== month),
           incomePlans: previous.incomePlans.filter((plan) => plan.month !== month),
+          // The savings figure is part of the month's plan, so "delete the
+          // plan" has to take it too; leaving it would resurrect a number
+          // whose context is gone.
+          savingsPlans: previous.savingsPlans.filter((plan) => plan.month !== month),
         }))
       },
 
@@ -286,6 +314,30 @@ export function FinanceProvider({
         })
       },
 
+      setSavingsPlan(month, amounts) {
+        commit((previous) => {
+          const entry = {
+            month,
+            // A pot planned at zero carries no information, so it is not
+            // stored — an absent key and a zero mean the same thing.
+            amounts: Object.fromEntries(
+              Object.entries(amounts)
+                .map(([pot, amount]) => [pot, round2(amount)] as const)
+                .filter(([, amount]) => amount > 0),
+            ),
+          }
+          const exists = previous.savingsPlans.some((plan) => plan.month === month)
+          return {
+            ...previous,
+            savingsPlans: exists
+              ? previous.savingsPlans.map((plan) =>
+                  plan.month === month ? entry : plan,
+                )
+              : [...previous.savingsPlans, entry],
+          }
+        })
+      },
+
       applyTemplate(month) {
         commit((previous) => {
           if (previous.budgetLines.some((line) => line.month === month)) {
@@ -308,6 +360,10 @@ export function FinanceProvider({
 
           const priorPlan = previous.incomePlans.find((plan) => plan.month === source)
 
+          const priorSavings = previous.savingsPlans.find(
+            (plan) => plan.month === source,
+          )
+
           return {
             ...previous,
             budgetLines: [...previous.budgetLines, ...lines],
@@ -317,8 +373,66 @@ export function FinanceProvider({
                   ...previous.incomePlans,
                   { month, amounts: { ...(priorPlan?.amounts ?? {}) } },
                 ],
+            savingsPlans: previous.savingsPlans.some((plan) => plan.month === month)
+              ? previous.savingsPlans
+              : [
+                  ...previous.savingsPlans,
+                  { month, amounts: { ...(priorSavings?.amounts ?? {}) } },
+                ],
           }
         })
+      },
+
+      addSavingsPot(name, target) {
+        commit((previous) =>
+          addPotTo(previous, {
+            id: nextId(),
+            name,
+            target: target && target > 0 ? round2(target) : undefined,
+          }),
+        )
+      },
+
+      renameSavingsPot(id, name) {
+        commit((previous) => renamePotIn(previous, id, name))
+      },
+
+      setSavingsPotTarget(id, target) {
+        commit((previous) => setPotTargetIn(previous, id, target))
+      },
+
+      removeSavingsPot(id, reassignTo) {
+        commit((previous) => removePotFrom(previous, id, reassignTo))
+      },
+
+      addSavingsEntry(entry) {
+        commit((previous) => ({
+          ...previous,
+          savingsEntries: [
+            ...previous.savingsEntries,
+            { ...entry, id: nextId(), amount: round2(entry.amount) },
+          ],
+        }))
+      },
+
+      updateSavingsEntry(id, patch) {
+        commit((previous) => ({
+          ...previous,
+          savingsEntries: previous.savingsEntries.map((entry) =>
+            entry.id === id ? { ...patch, id, amount: round2(patch.amount) } : entry,
+          ),
+        }))
+      },
+
+      removeSavingsEntry(id) {
+        commit((previous) => ({
+          ...previous,
+          savingsEntries: previous.savingsEntries.filter((entry) => entry.id !== id),
+        }))
+      },
+
+      convertSavingsFromTransactions() {
+        commit((previous) => convertSavingTransactions(previous, nextId))
       },
 
       addCategory(name, type, kind) {
@@ -347,6 +461,11 @@ export function FinanceProvider({
           budgetLines: [],
           incomePlans: [],
           categories: previous.categories,
+          // The pots are setup too — the goals somebody named — so a reset of
+          // the figures empties them rather than deleting them.
+          savingsPots: previous.savingsPots,
+          savingsEntries: [],
+          savingsPlans: [],
         }))
       },
     }),

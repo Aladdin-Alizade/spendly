@@ -49,7 +49,7 @@ forward, so step 2 is one tap.
 
 ---
 
-## The three screens
+## The screens
 
 The month you are looking at is set in the header, and applies everywhere.
 
@@ -119,10 +119,44 @@ What the month is *supposed* to look like:
 - **Planlaşdırılan gəlir** — what you expect to earn, per income category.
 - **Planlaşdırılan xərclər** — your planned spending lines, grouped by
   category, next to what you have actually spent.
+- **Planlaşdırılan yığım** — what you mean to put away this month, per pot,
+  next to what you actually put away. Only deposits made out of income count
+  towards it: meeting a savings plan out of a windfall is not meeting it.
 - **Planlaşdırılan qalıq** — planned income minus planned spending. If it is
-  negative, the plan spends more than it earns, and the app says so.
+  negative, the plan spends more than it earns, and the app says so. When a
+  savings plan exists, the line underneath subtracts it, so you can see what
+  the month has left once you have paid yourself first.
 - **Kateqoriyalar** — your own categories, for both income and spending.
 - **Silmə** — the delete tools, deliberately at the very bottom.
+
+### Yığım — money set aside
+
+Savings are a third flow here, not a kind of spending. Money moved into a pot
+has not been consumed, so it appears in no spending total; money taken back out
+was not earned, so it appears in no income total.
+
+- **Harada dayanırsınız** — three figures that add up: what you can spend, what
+  you have put away, and the total. The balance on İcmal is the first of them.
+- **Qablar** — one per goal, with an optional target. A target draws a
+  progress bar; without one the pot simply reports its balance.
+- **Hərəkətlər** — every deposit and withdrawal. A deposit says where the
+  money came from, and that answer is the point of the whole screen:
+  - **Gəlirimdən** — set aside out of money you had already earned. It leaves
+    the spendable side without being spending.
+  - **Kənardan** — a gift, a sale, a repaid loan that went straight to the pot.
+    It touches neither your income nor your spending, so it cannot inflate the
+    percentages on Məsləhətlər.
+
+Every figure on this screen is as of the end of the month in the header, like
+everywhere else in the app.
+
+Once a pot has something in it, the emergency-fund panel stops showing a target
+alone and starts showing how far along you are. To hold yourself to a monthly
+figure rather than a final one, plan it in **Büdcə → Planlaşdırılan yığım**.
+
+If you recorded savings the older way — as spending into a category marked
+*Yığım* — the screen offers to convert those transactions into deposits. It
+deletes the transactions, so it asks first.
 
 ---
 
@@ -138,6 +172,11 @@ What the month is *supposed* to look like:
 | Add a planned expense | **Büdcə** → **Sətir əlavə et** |
 | Set expected income | **Büdcə** → **Planlaşdırılan gəlir** → **Dəyiş** |
 | Add a category | **Büdcə** → **Kateqoriyalar** → **+ Kateqoriya əlavə et** |
+| Start saving | **Yığım** → **Qab əlavə et**, name the goal, optionally set a target |
+| Record money set aside | **Yığım** → **Qoy / götür** → **Qoyuram** → **Gəlirimdən** |
+| Record a windfall you saved | The same, but **Kənardan** — it stays out of your income figures |
+| Take money out of a pot | **Qoy / götür** → **Götürürəm**, then record the spending as a normal transaction |
+| Plan what to save each month | **Büdcə** → **Planlaşdırılan yığım** → **Dəyiş** |
 | Rename a category | Tap it in **Kateqoriyalar**, type the new name, save |
 | Delete a category | Tap it → **Sil** |
 | Classify a category | Tap it → **Növü** (needed by the 50/30/20 and needs-vs-wants panels) |
@@ -152,8 +191,8 @@ Every destructive action needs a second click to confirm.
 
 ### About categories
 
-Categories are yours. The app starts you off with a set carried over from the
-original spreadsheet, and you can add, rename and delete freely.
+Categories are yours. The app hands out none of its own — you add, rename and
+delete them freely, and an account starts with an empty list.
 
 **Renaming is safe.** Rename `Ərzaq` to `Yemək` and every transaction, budget
 line and planned figure that used it comes along. No amount changes, and no
@@ -189,7 +228,9 @@ publishable key, then do two things in the Supabase dashboard:
 
 1. **Create the tables** — paste [`supabase/schema.sql`](supabase/schema.sql)
    into the SQL editor and run it. Running it again later is safe, and is how
-   you pick up changes — the `categories.kind` column is the most recent.
+   you pick up changes — the `savings_pots`, `savings_entries` and
+   `savings_plans` tables are the most recent, and the app cannot save a pot
+   until they exist.
 2. **Turn on the Email provider** — Authentication → Sign In / Providers.
 
 Until both are done the app tells you which step is missing instead of showing

@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { MonthSwitcher } from './components/MonthSwitcher'
 import { TransactionDialog } from './components/TransactionDialog'
+import { SavingsEntryDialog } from './components/SavingsEntryDialog'
+import { SavingsPotDialog } from './components/SavingsPotDialog'
 import { ProfileDialog } from './components/ProfileDialog'
 import { Dashboard } from './screens/Dashboard'
 import { Transactions } from './screens/Transactions'
 import { Budget } from './screens/Budget'
+import { Savings } from './screens/Savings'
 import { Advice } from './screens/Advice'
 import { knownMonths } from './lib/calc'
 import { currentMonth, monthOf, today } from './lib/dates'
@@ -14,12 +17,13 @@ import { setupHint } from './lib/setupHints'
 import type { SyncState } from './lib/syncingRepository'
 import type { MonthKey, Transaction } from './lib/types'
 
-type Screen = 'dashboard' | 'transactions' | 'budget' | 'advice'
+type Screen = 'dashboard' | 'transactions' | 'budget' | 'savings' | 'advice'
 
 const SCREENS: { id: Screen; label: string }[] = [
   { id: 'dashboard', label: 'İcmal' },
   { id: 'transactions', label: 'Əməliyyatlar' },
   { id: 'budget', label: 'Büdcə' },
+  { id: 'savings', label: 'Yığım' },
   { id: 'advice', label: 'Məsləhətlər' },
 ]
 
@@ -40,6 +44,7 @@ export function App() {
   const [screen, setScreen] = useState<Screen>('dashboard')
   const [month, setMonth] = useState<MonthKey>(currentMonth())
   const [editing, setEditing] = useState<Transaction | 'new' | null>(null)
+  const [savingsDialog, setSavingsDialog] = useState<'entry' | 'pot' | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
 
   const months = knownMonths(data, currentMonth())
@@ -47,7 +52,20 @@ export function App() {
   /** New transactions default to today, or to the 1st of a non-current month. */
   const defaultDate = month === currentMonth() ? today() : `${month}-01`
 
-  const openNew = () => setEditing('new')
+  /**
+   * The add button records whatever the screen is about. On Yığım that is a
+   * movement, not a transaction — and with no pot yet it is the pot itself,
+   * because a movement has nowhere to go until one exists.
+   */
+  const openNew = () => {
+    if (screen !== 'savings') {
+      setEditing('new')
+      return
+    }
+    setSavingsDialog(data.savingsPots.length > 0 ? 'entry' : 'pot')
+  }
+
+  const addLabel = screen === 'savings' ? 'Yığım hərəkəti əlavə et' : 'Əməliyyat əlavə et'
 
   if (status !== 'ready') {
     return <Gate status={status} error={error} onRetry={retry} />
@@ -109,12 +127,27 @@ export function App() {
           />
         )}
         {screen === 'budget' && <Budget data={data} month={month} />}
+        {screen === 'savings' && (
+          <Savings data={data} month={month} defaultDate={defaultDate} />
+        )}
         {screen === 'advice' && <Advice data={data} month={month} />}
       </main>
 
-      <button type="button" className="fab" onClick={openNew} aria-label="Əməliyyat əlavə et">
+      <button type="button" className="fab" onClick={openNew} aria-label={addLabel}>
         +
       </button>
+
+      {savingsDialog === 'entry' && (
+        <SavingsEntryDialog
+          entry={null}
+          defaultDate={defaultDate}
+          onClose={() => setSavingsDialog(null)}
+        />
+      )}
+
+      {savingsDialog === 'pot' && (
+        <SavingsPotDialog pot={null} onClose={() => setSavingsDialog(null)} />
+      )}
 
       {profileOpen && <ProfileDialog onClose={() => setProfileOpen(false)} />}
 

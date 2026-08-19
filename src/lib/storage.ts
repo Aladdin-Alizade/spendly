@@ -9,12 +9,21 @@
  */
 
 import { categoriesFromData } from './categories'
-import { isCategoryKind, migrateCategory, migrateIncomePlan } from './types'
+import {
+  isCategoryKind,
+  isSavingsDirection,
+  isSavingsSource,
+  migrateCategory,
+  migrateIncomePlan,
+} from './types'
 import type {
   BudgetLine,
   Category,
   CategoryDef,
   FinanceData,
+  SavingsEntry,
+  SavingsPlan,
+  SavingsPot,
   Transaction,
 } from './types'
 
@@ -30,6 +39,9 @@ export const emptyData: FinanceData = {
   budgetLines: [],
   incomePlans: [],
   categories: [],
+  savingsPots: [],
+  savingsEntries: [],
+  savingsPlans: [],
 }
 
 export class LocalStorageRepository implements FinanceRepository {
@@ -83,6 +95,48 @@ export function normaliseData(value: unknown): FinanceData {
           name: migrateCategory(category.name),
           // An unrecognised kind is dropped rather than trusted.
           kind: isCategoryKind(category.kind) ? category.kind : undefined,
+        }))
+      : [],
+    savingsPots: Array.isArray(data.savingsPots)
+      ? data.savingsPots.map((pot: SavingsPot) => ({
+          ...pot,
+          name: String(pot.name ?? '').trim(),
+          // A target of zero and no target say the same thing; only one of
+          // them makes the screens draw a progress bar to nowhere.
+          target:
+            typeof pot.target === 'number' && pot.target > 0 ? pot.target : undefined,
+        }))
+      : [],
+    savingsEntries: Array.isArray(data.savingsEntries)
+      ? data.savingsEntries.map((entry: SavingsEntry) => {
+          // An unreadable direction is read as a deposit rather than dropped:
+          // the row is a record of money, and guessing wrong about which way
+          // it went is recoverable, losing it is not.
+          const direction = isSavingsDirection(entry.direction)
+            ? entry.direction
+            : 'in'
+          return {
+            ...entry,
+            direction,
+            source:
+              direction === 'in'
+                ? isSavingsSource(entry.source)
+                  ? entry.source
+                  : 'income'
+                : undefined,
+          }
+        })
+      : [],
+    savingsPlans: Array.isArray(data.savingsPlans)
+      ? data.savingsPlans.map((plan: SavingsPlan) => ({
+          month: String(plan.month),
+          amounts: Object.fromEntries(
+            Object.entries(plan.amounts ?? {})
+              .map(([pot, amount]) => [pot, Number(amount)] as const)
+              // A figure that will not parse is dropped rather than turned
+              // into a zero, which would read as a deliberate plan of nothing.
+              .filter(([, amount]) => Number.isFinite(amount) && amount > 0),
+          ),
         }))
       : [],
   }

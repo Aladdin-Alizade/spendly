@@ -6,7 +6,7 @@ import {
   validateCategoryName,
 } from '../lib/categories'
 import { useFinance } from '../store/FinanceProvider'
-import { CATEGORY_KINDS } from '../lib/types'
+import { SELECTABLE_CATEGORY_KINDS } from '../lib/types'
 import { KIND_LABEL } from '../lib/insights/classification'
 import type { CategoryDef, CategoryKind, TransactionType } from '../lib/types'
 
@@ -46,6 +46,14 @@ export function CategoryDialog({
   const [reassignTo, setReassignTo] = useState(alternatives[0]?.name ?? '')
 
   const error = validateCategoryName(data, name, kindOfCategory, category?.id)
+
+  /* `saving` is no longer offered — pots do that job — but a category written
+     before them still carries it, and dropping it from the list would show an
+     empty select for a category that is in fact classified. */
+  const kindOptions =
+    kind === 'saving'
+      ? [...SELECTABLE_CATEGORY_KINDS, 'saving' as const]
+      : SELECTABLE_CATEGORY_KINDS
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -181,7 +189,7 @@ export function CategoryDialog({
                     }
                   >
                     <option value="">Təsnif edilməyib</option>
-                    {CATEGORY_KINDS.map((option) => (
+                    {kindOptions.map((option) => (
                       <option key={option} value={option}>
                         {KIND_LABEL[option]}
                       </option>
@@ -192,6 +200,14 @@ export function CategoryDialog({
                   Ehtiyac/istək bölgüsü, 50/30/20 və təcili fond hesablamaları
                   bundan istifadə edir. Boş qalsa, həmin bölmələr bunu bildirir.
                 </p>
+                {kind === 'saving' && (
+                  <p className="field-note">
+                    Bu kateqoriya yığım qablarından əvvəl yazılıb. Yığım artıq
+                    ayrıca Yığım səhifəsində aparılır — orada bu xərcləri qab
+                    hərəkətinə çevirmək təklif olunur. Çevirdikdən sonra bu növü
+                    boş buraxa bilərsiniz.
+                  </p>
+                )}
               </div>
             )}
 

@@ -12,7 +12,8 @@ import { IncomeBars } from '../components/charts/IncomeBars'
 import { DetailDialog } from '../components/DetailDialog'
 import { formatAZN, formatSignedAZN, round2 } from '../lib/money'
 import { formatDayShort, formatMonth, formatWeekdayShort, today, weekdayOf } from '../lib/dates'
-import { runningBalance } from '../lib/calc'
+import { spendableBalance, totalHoldings } from '../lib/calc'
+import { depositedFromIncome, savingsBalance } from '../lib/savings'
 import {
   categoryBreakdown,
   dailyActivity,
@@ -66,8 +67,10 @@ export function Dashboard({
     return {
       summary,
       prior,
-      balance: runningBalance(data.transactions, period.months.at(-1)),
-      priorBalance: runningBalance(data.transactions, previousPeriod(period).months.at(-1)),
+      balance: spendableBalance(data, period.months.at(-1)),
+      priorBalance: spendableBalance(data, previousPeriod(period).months.at(-1)),
+      saved: savingsBalance(data.savingsEntries, period.months.at(-1)),
+      total: totalHoldings(data, period.months.at(-1)),
       categories: categoryBreakdown(data, period),
       split: expectedSplit(data, period),
       buckets: flowBuckets(data, period),
@@ -78,6 +81,16 @@ export function Dashboard({
       frequent: frequentExpenses(data, period, 5),
       pace: period.months.length === 1 ? spendingPace(data, period.months[0], today()) : null,
       transactions: transactionsInPeriod(data.transactions, period),
+      // Movements in this period, and what of them left the spendable side.
+      entries: data.savingsEntries.filter((entry) =>
+        period.months.includes(entry.date.slice(0, 7)),
+      ),
+      deposited: round2(
+        period.months.reduce(
+          (total, item) => total + depositedFromIncome(data.savingsEntries, item),
+          0,
+        ),
+      ),
     }
   }, [data, period])
 
@@ -89,7 +102,9 @@ export function Dashboard({
     () => categoryColors(categories.map((row) => row.category)),
     [categories],
   )
-  const hasActivity = view.transactions.length > 0
+  // A month whose only record is a savings movement is not an empty month:
+  // the balance moved, and saying "nothing here" next to that reads as a bug.
+  const hasActivity = view.transactions.length > 0 || view.entries.length > 0
   const hasComparison = prior.transactionCount > 0
   const budgetLeft = round2(summary.plannedExpenses - summary.expenses)
 
@@ -126,6 +141,7 @@ export function Dashboard({
               : `${formatMonth(period.months[0])} — ${formatMonth(period.months.at(-1) as MonthKey)}`}
             {' · '}
             {view.transactions.length} əməliyyat
+            {view.entries.length > 0 && ` · ${view.entries.length} yığım hərəkəti`}
           </p>
         </div>
 
@@ -149,10 +165,27 @@ export function Dashboard({
         {/* ---------------------------------------------------------- *
             Where I stand
          * ---------------------------------------------------------- */}
-        <Panel title="Balans" span={4}>
+        <Panel
+          title="Balans"
+          span={4}
+          note={
+            view.saved > 0 ? (
+              <span className="panel-note">xərcləyə bilən</span>
+            ) : undefined
+          }
+        >
           <p className={`hero-value num${view.balance < 0 ? ' neg' : ''}`}>
             {formatAZN(view.balance)}
           </p>
+
+          {/* Money in a pot is money you have, so a balance that excludes it
+              needs the rest said next to it or it reads as a loss. */}
+          {view.saved > 0 && (
+            <p className="hero-aside">
+              yığım <strong className="num">{formatAZN(view.saved)}</strong> · cəmi{' '}
+              <strong className="num">{formatAZN(view.total)}</strong>
+            </p>
+          )}
 
           <div className="hero-meta">
             <Delta
@@ -260,6 +293,17 @@ export function Dashboard({
                 : 'Gəlir qeydə alınmayıb'}
             </span>
           </div>
+
+          {/* "Qalan" is income minus spending, and a deposit is neither — so
+              this figure still holds money the balance above has already moved
+              into a pot. Two right answers to two different questions, which
+              only confuse each other when nobody says so. */}
+          {view.deposited > 0 && (
+            <p className="flow-kept-note">
+              bunun {formatAZN(view.deposited)} hissəsi yığım qabına keçib —
+              balansda yox, qabdadır
+            </p>
+          )}
         </Panel>
 
         {!hasActivity && (

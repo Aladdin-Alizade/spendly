@@ -15,6 +15,7 @@
 import { round2, sum } from '../money'
 import { monthOf, shiftMonth } from '../dates'
 import { actualIncome } from '../calc'
+import { depositedFromIncome, savingsBalance } from '../savings'
 import { median } from './advice'
 import type { CategoryKind, FinanceData, MonthKey } from '../types'
 
@@ -237,8 +238,12 @@ export function spendingRigidity(split: SpendingSplit): Rigidity | null {
 export interface FundPace {
   /** Income minus everything spent, this month. */
   retainedMonthly: number
-  /** What was deliberately put into a saving category. */
+  /** What was deliberately put away this month. */
   savingMonthly: number
+  /** Already in the savings pots, as of the end of this month. */
+  saved: number
+  /** What is still missing, floored at zero once the target is met. */
+  remaining: number
   /** Months to the target at the retained rate. Null when nothing is retained. */
   monthsAtRetained: number | null
   /** Months to the target at the deliberate-saving rate. */
@@ -246,11 +251,15 @@ export interface FundPace {
 }
 
 /**
- * How long the target takes, at two different rates.
+ * How long the rest of the target takes, at two different rates.
  *
  * The gap between them is the whole point. Money retained is money that was
  * not spent, which is not the same as money put away — and the difference
  * between "seven months" and "three years" is what makes that concrete.
+ *
+ * Both counts start from what is already in the pots. Estimating from the full
+ * target once the money is visible would be telling somebody they are at the
+ * beginning of a journey they are halfway through.
  */
 export function fundPace(
   data: FinanceData,
@@ -262,13 +271,22 @@ export function fundPace(
   if (income <= 0 || target <= 0) return null
 
   const retainedMonthly = round2(income - split.total)
-  const savingMonthly = split.saving
+  // Deposits made into a pot out of income, plus anything still recorded the
+  // old way — as spending into a category marked `saving`. Both are the same
+  // act, and an account part-way through the conversion holds some of each.
+  const savingMonthly = round2(
+    split.saving + depositedFromIncome(data.savingsEntries, month),
+  )
+  const saved = savingsBalance(data.savingsEntries, month)
+  const remaining = round2(Math.max(target - saved, 0))
 
   return {
     retainedMonthly,
     savingMonthly,
-    monthsAtRetained: retainedMonthly > 0 ? target / retainedMonthly : null,
-    monthsAtSaving: savingMonthly > 0 ? target / savingMonthly : null,
+    saved,
+    remaining,
+    monthsAtRetained: retainedMonthly > 0 ? remaining / retainedMonthly : null,
+    monthsAtSaving: savingMonthly > 0 ? remaining / savingMonthly : null,
   }
 }
 

@@ -52,7 +52,7 @@ export const METHODS: Record<string, Methodology> = {
   },
   retained: {
     name: 'Qalan pul və onun faizi',
-    note: 'BEA-nın şəxsi yığım nisbətinin qarşılığı. Tətbiq pulun saxlanıb-saxlanmadığını görmədiyi üçün "yığım" yox, "qalan" deyilir.',
+    note: 'BEA-nın şəxsi yığım nisbətinin qarşılığı. Xərclənməyən puldur — qəsdən kənara qoyulan məbləğ Yığım səhifəsində ayrıca göstərilir, ona görə buna "yığım" yox, "qalan" deyilir.',
     source: 'U.S. Bureau of Economic Analysis',
     url: 'https://www.bea.gov/data/income-saving/personal-saving-rate',
     origin: 'US',

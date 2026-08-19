@@ -10,7 +10,13 @@
  */
 
 import { supabase, currentUserId } from './supabase'
-import { isCategoryKind, migrateCategory, migrateIncomePlan } from './types'
+import {
+  isCategoryKind,
+  isSavingsDirection,
+  isSavingsSource,
+  migrateCategory,
+  migrateIncomePlan,
+} from './types'
 import { categoriesFromData } from './categories'
 import { emptyData } from './storage'
 import type { FinanceRepository } from './storage'
@@ -19,6 +25,9 @@ import type {
   CategoryDef,
   FinanceData,
   IncomePlan,
+  SavingsEntry,
+  SavingsPlan,
+  SavingsPot,
   Transaction,
 } from './types'
 
@@ -47,15 +56,32 @@ export class SupabaseRepository implements FinanceRepository {
     const client = requireClient()
     this.userId = await requireUser()
 
-    const [transactions, budgetLines, incomePlans, categories] = await Promise.all([
+    const [
+      transactions,
+      budgetLines,
+      incomePlans,
+      categories,
+      pots,
+      entries,
+      savingsPlans,
+    ] = await Promise.all([
       client.from('transactions').select('*'),
       client.from('budget_lines').select('*'),
       client.from('income_plans').select('*'),
       client.from('categories').select('*'),
+      client.from('savings_pots').select('*'),
+      client.from('savings_entries').select('*'),
+      client.from('savings_plans').select('*'),
     ])
 
     const failure =
-      transactions.error ?? budgetLines.error ?? incomePlans.error ?? categories.error
+      transactions.error ??
+      budgetLines.error ??
+      incomePlans.error ??
+      categories.error ??
+      pots.error ??
+      entries.error ??
+      savingsPlans.error
     if (failure) throw failure
 
     const data: FinanceData = {
@@ -63,6 +89,9 @@ export class SupabaseRepository implements FinanceRepository {
       budgetLines: (budgetLines.data ?? []).map(toBudgetLine),
       incomePlans: (incomePlans.data ?? []).map(toIncomePlan),
       categories: (categories.data ?? []).map(toCategory),
+      savingsPots: (pots.data ?? []).map(toPot),
+      savingsEntries: (entries.data ?? []).map(toEntry),
+      savingsPlans: (savingsPlans.data ?? []).map(toSavingsPlan),
     }
 
     // An account created before categories were stored has none of its own.
@@ -152,6 +181,44 @@ export class SupabaseRepository implements FinanceRepository {
       jobs.push(client.from('categories').delete().in('id', categoryChanged.removed))
     }
 
+    // --- savings pots -------------------------------------------------------
+    const potChanged = changedRows(before.savingsPots, after.savingsPots, (p) => ({
+      id: p.id,
+      user_id: userId,
+      name: p.name,
+      target: p.target ?? null,
+    }))
+    if (potChanged.upserts.length) {
+      jobs.push(client.from('savings_pots').upsert(potChanged.upserts, BY_OWNER))
+    }
+    if (potChanged.removed.length) {
+      jobs.push(client.from('savings_pots').delete().in('id', potChanged.removed))
+    }
+
+    // --- savings entries ----------------------------------------------------
+    const entryChanged = changedRows(
+      before.savingsEntries,
+      after.savingsEntries,
+      (e) => ({
+        id: e.id,
+        user_id: userId,
+        date: e.date,
+        pot: e.pot,
+        amount: e.amount,
+        direction: e.direction,
+        source: e.source ?? null,
+        note: e.note ?? null,
+      }),
+    )
+    if (entryChanged.upserts.length) {
+      jobs.push(client.from('savings_entries').upsert(entryChanged.upserts, BY_OWNER))
+    }
+    if (entryChanged.removed.length) {
+      jobs.push(
+        client.from('savings_entries').delete().in('id', entryChanged.removed),
+      )
+    }
+
     // --- income plans (keyed by month, not by a generated id) --------------
     const planChanged = changedRows(
       before.incomePlans.map(withMonthKey),
@@ -172,6 +239,29 @@ export class SupabaseRepository implements FinanceRepository {
     if (planChanged.removed.length) {
       jobs.push(
         client.from('income_plans').delete().in('month', planChanged.removed),
+      )
+    }
+
+    // --- savings plans (keyed by month, like income plans) ------------------
+    const savingsPlanChanged = changedRows(
+      before.savingsPlans.map(withMonthKey),
+      after.savingsPlans.map(withMonthKey),
+      (p) => ({
+        user_id: userId,
+        month: p.month,
+        amounts: p.amounts,
+      }),
+    )
+    if (savingsPlanChanged.upserts.length) {
+      jobs.push(
+        client.from('savings_plans').upsert(savingsPlanChanged.upserts, {
+          onConflict: 'user_id,month',
+        }),
+      )
+    }
+    if (savingsPlanChanged.removed.length) {
+      jobs.push(
+        client.from('savings_plans').delete().in('month', savingsPlanChanged.removed),
       )
     }
 
@@ -211,8 +301,8 @@ export function changedRows<T extends { id: string }>(
   return { upserts, removed }
 }
 
-/** Income plans have no id column; the month is their identity. */
-function withMonthKey(plan: IncomePlan): IncomePlan & { id: string } {
+/** Income and savings plans have no id column; the month is their identity. */
+function withMonthKey<T extends { month: string }>(plan: T): T & { id: string } {
   return { ...plan, id: plan.month }
 }
 
@@ -275,6 +365,47 @@ function toCategory(row: Row): CategoryDef {
  * `additional` columns and an empty `amounts`; the migration reads whichever
  * of the two shapes the row is in.
  */
+function toPot(row: Row): SavingsPot {
+  const target = row.target === null || row.target === undefined ? 0 : num(row.target)
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    target: target > 0 ? target : undefined,
+  }
+}
+
+function toEntry(row: Row): SavingsEntry {
+  // A stored direction is trusted only when it is one of the two; anything
+  // else is read as a deposit, so the amount survives a bad row.
+  const direction = isSavingsDirection(row.direction) ? row.direction : 'in'
+  return {
+    id: String(row.id),
+    date: String(row.date),
+    pot: String(row.pot),
+    amount: num(row.amount),
+    direction,
+    source:
+      direction === 'in'
+        ? isSavingsSource(row.source)
+          ? row.source
+          : 'income'
+        : undefined,
+    note: row.note ? String(row.note) : undefined,
+  }
+}
+
+function toSavingsPlan(row: Row): SavingsPlan {
+  const stored = (row.amounts ?? {}) as Record<string, unknown>
+  return {
+    month: String(row.month),
+    amounts: Object.fromEntries(
+      Object.entries(stored)
+        .map(([pot, amount]) => [pot, num(amount)] as const)
+        .filter(([, amount]) => amount > 0),
+    ),
+  }
+}
+
 function toIncomePlan(row: Row): IncomePlan {
   const amounts = row.amounts as Record<string, unknown> | null
   const stored =

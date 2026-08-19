@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Panel } from '../components/primitives'
+import { Panel, Meter } from '../components/primitives'
 import { budgetAdvice } from '../lib/insights/advice'
 import type { Advice, AdvicePriority } from '../lib/insights/advice'
 import {
@@ -271,7 +271,11 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
         <Panel
           title="Təcili ehtiyat fondu"
           span={4}
-          note={<span className="panel-note">yalnız hədəf</span>}
+          note={
+            <span className="panel-note">
+              {pace && pace.saved > 0 ? 'hədəf və irəliləyiş' : 'yalnız hədəf'}
+            </span>
+          }
         >
           {fund ? (
             <>
@@ -298,22 +302,37 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
                 <span className="fund-target-value num">{formatAZN(fund.target)}</span>
               </div>
 
+              {/* Progress, now that the pots make it knowable. Without them
+                  this panel could only ever name a target. */}
+              {pace && pace.saved > 0 && (
+                <div className="fund-progress">
+                  <Meter value={pace.saved} max={fund.target} />
+                  <p className="fund-note">
+                    yığımınız {formatAZN(pace.saved)} — hədəfin{' '}
+                    {Math.round((pace.saved / fund.target) * 100)}%-i
+                    {pace.remaining > 0
+                      ? `, ${formatAZN(pace.remaining)} qalıb`
+                      : ' · hədəf yığılıb'}
+                  </p>
+                </div>
+              )}
+
               {pace && (
                 <p className="reading">
                   Gəliriniz dayansa, bu məbləğ təxminən{' '}
                   <strong>{fund.months} ay</strong> əsas xərclərinizi qarşılayar.
-                  {pace.monthsAtRetained !== null && (
+                  {pace.remaining > 0 && pace.monthsAtRetained !== null && (
                     <>
                       {' '}Bu ay qalan{' '}
                       <strong>{formatAZN(pace.retainedMonthly)}</strong> hər ay
-                      qalsa, hədəfə{' '}
+                      qalsa, qalan məbləğə{' '}
                       <strong>{pace.monthsAtRetained.toFixed(1)} ayda</strong>{' '}
                       çatarsınız.
                     </>
                   )}
-                  {pace.monthsAtSaving !== null && (
+                  {pace.remaining > 0 && pace.monthsAtSaving !== null && (
                     <>
-                      {' '}Yalnız yığıma qoyduğunuz{' '}
+                      {' '}Yalnız qaba qoyduğunuz{' '}
                       {formatAZN(pace.savingMonthly)} ilə isə{' '}
                       {Math.round(pace.monthsAtSaving)} ay çəkər — «qalan» ilə
                       «yığılan» arasındakı fərq budur.
@@ -322,9 +341,10 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
                 </p>
               )}
               <p className="framework-note">
-                CFPB vahid rəqəm vermir — məbləğ vəziyyətinizdən asılıdır. Tətbiq
-                hesab qalığınızı görmür, ona görə hədəfə nə qədər yaxın
-                olduğunuzu deyə bilmir.
+                CFPB vahid rəqəm vermir — məbləğ vəziyyətinizdən asılıdır.
+                {pace && pace.saved > 0
+                  ? ' İrəliləyiş yığım qablarınızın cəminə görə hesablanır; tətbiq bank hesablarınızı görmür.'
+                  : ' Yığım qablarınıza qoyduğunuz məbləğlər burada irəliləyiş kimi görünəcək.'}
               </p>
             </>
           ) : (

@@ -40,6 +40,9 @@ function build(partial: Partial<FinanceData> = {}): FinanceData {
     budgetLines: [],
     incomePlans: [],
     categories: cats,
+    savingsPots: [],
+    savingsEntries: [],
+    savingsPlans: [],
     ...partial,
   }
 }

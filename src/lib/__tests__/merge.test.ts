@@ -85,6 +85,9 @@ describe('mergeFinanceData', () => {
     ],
     incomePlans: [{ month: '2026-08', amounts: { 'Maaş': 990 } }],
     categories: sheetCategories(),
+    savingsPots: [],
+    savingsEntries: [],
+    savingsPlans: [],
   }
 
   it('merges every collection, each by its own identity', () => {
@@ -130,6 +133,9 @@ describe('hasPendingWork', () => {
     budgetLines: [],
     incomePlans: [],
     categories: [],
+    savingsPots: [],
+    savingsEntries: [],
+    savingsPlans: [],
   }
 
   it('is nothing when the device matches the last sync', () => {
@@ -153,6 +159,9 @@ describe('the same category under two ids', () => {
     budgetLines: [],
     incomePlans: [],
     categories,
+    savingsPots: [],
+    savingsEntries: [],
+    savingsPlans: [],
   })
 
   it('resolves it in favour of the server', () => {

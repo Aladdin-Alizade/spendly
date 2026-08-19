@@ -25,6 +25,9 @@ function build(partial: Partial<FinanceData> = {}): FinanceData {
       { id: 'c2', name: 'Nəqliyyat', type: 'expense' },
       { id: 'c3', name: 'Maaş', type: 'income' },
     ],
+    savingsPots: [],
+    savingsEntries: [],
+    savingsPlans: [],
     ...partial,
   }
 }

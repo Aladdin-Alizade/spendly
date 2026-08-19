@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { EmptyState, Section } from '../components/primitives'
 import { BudgetLineDialog } from '../components/BudgetLineDialog'
-import { IncomePlanDialog } from '../components/IncomePlanDialog'
+import { PlannedAmountsDialog } from '../components/PlannedAmountsDialog'
 import { CategoryDialog } from '../components/CategoryDialog'
 import { categoriesOfType, categoryUsage, plannedIncomeRows } from '../lib/categories'
+import { plannedSavingsRows } from '../lib/savings'
 import { formatAZN, formatSignedAZN } from '../lib/money'
 import { formatMonth } from '../lib/dates'
 import { budgetGroups, summarise } from '../lib/calc'
@@ -26,11 +27,13 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
     upsertBudgetLine,
     removeBudgetLine,
     setIncomePlan,
+    setSavingsPlan,
     clearMonthPlan,
     resetAll,
   } = useFinance()
   const [editing, setEditing] = useState<BudgetLine | 'new' | null>(null)
   const [editingIncome, setEditingIncome] = useState(false)
+  const [editingSavings, setEditingSavings] = useState(false)
   const [editingCategory, setEditingCategory] = useState<
     { category: CategoryDef | null; type: TransactionType } | null
   >(null)
@@ -40,6 +43,8 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
   const plan = data.incomePlans.find((entry) => entry.month === month)
   const incomeCategories = categoriesOfType(data, 'income')
   const incomeRows = plannedIncomeRows(incomeCategories, plan?.amounts ?? {})
+  const savingsPlan = data.savingsPlans.find((entry) => entry.month === month)
+  const savingsRows = plannedSavingsRows(data.savingsPots, savingsPlan?.amounts ?? {})
   // Carrying the plan over needs a plan to carry. With no earlier month there
   // is nothing to copy, so the offer is not made.
   const hasPriorPlan = data.budgetLines.some((line) => line.month < month)
@@ -194,6 +199,48 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
         )}
       </Section>
 
+      <Section
+        title="Planlaşdırılan yığım"
+        action={
+          data.savingsPots.length > 0 ? (
+            <button
+              type="button"
+              className="button button-quiet"
+              onClick={() => setEditingSavings(true)}
+            >
+              Dəyiş
+            </button>
+          ) : undefined
+        }
+      >
+        <div className="card rows">
+          {savingsRows.map((row) => (
+            <PlanRow
+              key={row.pot}
+              label={row.pot}
+              value={row.planned}
+              note={row.orphaned ? 'qab silinib' : undefined}
+            />
+          ))}
+          {savingsRows.length === 0 && (
+            <p className="rows-more">
+              Hələ yığım qabı yoxdur. Yığım səhifəsindən əlavə edin.
+            </p>
+          )}
+          <PlanRow label="Plan" value={summary.plannedSavings} strong />
+          <PlanRow label="Faktiki kənara qoyulan" value={summary.actualSavings} />
+        </div>
+        {summary.plannedSavings > 0 && (
+          <p className="section-foot">
+            {summary.actualSavings >= summary.plannedSavings
+              ? 'Bu ayın yığım planı yerinə yetirilib.'
+              : `Plana çatmaq üçün ${formatAZN(
+                  summary.plannedSavings - summary.actualSavings,
+                )} qalıb. Yalnız gəlirdən kənara qoyulan sayılır — kənardan gələn pul planın yerinə yetirilməsi deyil.`}
+          </p>
+        )}
+      </Section>
+
       <Section title="Planlaşdırılan qalıq">
         <div className="card" style={{ padding: '16px' }}>
           <p
@@ -207,6 +254,22 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
             planlaşdırılan xərc {formatAZN(summary.plannedExpenses)}
             {summary.plannedRemainder < 0 && ' · bu plan qazancdan çox xərcləyir'}
           </p>
+          {/* Savings are subtracted here rather than folded into the figure
+              above, so the sheet's own arithmetic stays readable and the
+              reader can see what the savings plan costs the month. */}
+          {summary.plannedSavings > 0 && (
+            <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
+              yığım planı {formatAZN(summary.plannedSavings)} çıxılsa, sərbəst
+              qalan{' '}
+              <strong
+                className={`num${
+                  summary.plannedRemainder - summary.plannedSavings < 0 ? ' neg' : ''
+                }`}
+              >
+                {formatSignedAZN(summary.plannedRemainder - summary.plannedSavings)}
+              </strong>
+            </p>
+          )}
         </div>
       </Section>
 
@@ -244,6 +307,7 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
         month={month}
         hasPlan={groups.some((group) => group.lines.length > 0)}
         transactionCount={data.transactions.length}
+        savingsCount={data.savingsEntries.length}
         onClearPlan={() => clearMonthPlan(month)}
         onResetAll={resetAll}
       />
@@ -280,14 +344,35 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
       )}
 
       {editingIncome && (
-        <IncomePlanDialog
-          rows={incomeRows}
+        <PlannedAmountsDialog
+          title="Planlaşdırılan gəlir"
+          emptyText="Hələ gəlir kateqoriyası yoxdur. Aşağıdakı Kateqoriyalar bölməsindən əlavə edin."
+          idPrefix="ip"
+          rows={incomeRows.map((row) => ({
+            name: row.category,
+            orphaned: row.orphaned,
+          }))}
           amounts={plan?.amounts ?? {}}
           onSave={(amounts) => {
             setIncomePlan(month, amounts)
             setEditingIncome(false)
           }}
           onClose={() => setEditingIncome(false)}
+        />
+      )}
+
+      {editingSavings && (
+        <PlannedAmountsDialog
+          title="Planlaşdırılan yığım"
+          emptyText="Hələ yığım qabı yoxdur. Yığım səhifəsindən əlavə edin."
+          idPrefix="sp"
+          rows={savingsRows.map((row) => ({ name: row.pot, orphaned: row.orphaned }))}
+          amounts={savingsPlan?.amounts ?? {}}
+          onSave={(amounts) => {
+            setSavingsPlan(month, amounts)
+            setEditingSavings(false)
+          }}
+          onClose={() => setEditingSavings(false)}
         />
       )}
     </>
@@ -396,18 +481,20 @@ function DangerZone({
   month,
   hasPlan,
   transactionCount,
+  savingsCount,
   onClearPlan,
   onResetAll,
 }: {
   month: MonthKey
   hasPlan: boolean
   transactionCount: number
+  savingsCount: number
   onClearPlan: () => void
   onResetAll: () => void
 }) {
   const [confirming, setConfirming] = useState<'plan' | 'all' | null>(null)
 
-  if (!hasPlan && transactionCount === 0) return null
+  if (!hasPlan && transactionCount === 0 && savingsCount === 0) return null
 
   return (
     <Section title="Silmə">
@@ -444,6 +531,8 @@ function DangerZone({
             <span className="row-meta">
               {transactionCount} əməliyyat və bütün aylar üzrə planlar həmişəlik
               silinir.
+              {savingsCount > 0 &&
+                ` ${savingsCount} yığım qeydi də gedir — qabların adları qalır, içindəkilər sıfırlanır.`}
             </span>
           </span>
           <button
