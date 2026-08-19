@@ -53,6 +53,50 @@ export function hasCredentialErrors(errors: CredentialErrors): boolean {
   return Object.keys(errors).length > 0
 }
 
+export interface PasswordChangeInput {
+  current: string
+  next: string
+  repeat: string
+}
+
+export type PasswordChangeErrors = Partial<Record<keyof PasswordChangeInput, string>>
+
+/**
+ * Changing a password, checked as far as it can be without the server.
+ *
+ * The current password is asked for rather than taken on trust from the open
+ * session: an unattended browser is the ordinary case, and a session alone
+ * should not be enough to lock its owner out of their own account. The server
+ * is what actually verifies it — this only catches the empty field.
+ */
+export function validatePasswordChange(
+  input: PasswordChangeInput,
+): PasswordChangeErrors {
+  const errors: PasswordChangeErrors = {}
+
+  if (input.current === '') {
+    errors.current = 'Cari şifrəni daxil edin'
+  }
+
+  if (input.next === '') {
+    errors.next = 'Yeni şifrəni daxil edin'
+  } else if (input.next.length < MIN_PASSWORD_LENGTH) {
+    errors.next = `Yeni şifrə ən azı ${MIN_PASSWORD_LENGTH} simvol olmalıdır`
+  } else if (input.next === input.current) {
+    errors.next = 'Yeni şifrə köhnəsindən fərqli olmalıdır'
+  }
+
+  if (input.repeat !== input.next) {
+    errors.repeat = 'Şifrələr uyğun gəlmir'
+  }
+
+  return errors
+}
+
+export function hasPasswordChangeErrors(errors: PasswordChangeErrors): boolean {
+  return Object.keys(errors).length > 0
+}
+
 /**
  * Supabase's auth errors, in the user's language. Anything unrecognised is
  * passed through rather than replaced with a vague sentence.
@@ -69,6 +113,9 @@ export function authErrorMessage(message: string): string {
   }
   if (/password should be at least/i.test(message)) {
     return `Şifrə ən azı ${MIN_PASSWORD_LENGTH} simvol olmalıdır`
+  }
+  if (/new password should be different|same as the old password/i.test(message)) {
+    return 'Yeni şifrə köhnəsindən fərqli olmalıdır'
   }
   if (/rate limit|too many requests/i.test(message)) {
     return 'Çox sayda cəhd oldu. Bir az gözləyin.'

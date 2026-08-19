@@ -127,6 +127,7 @@ What the month is *supposed* to look like:
 | Classify a category | Tap it → **Növü** (needed by the 50/30/20 and needs-vs-wants panels) |
 | Wipe one month's plan | **Büdcə** → **Silmə** → **Planı sil** → **Təsdiqlə** |
 | Wipe everything | **Büdcə** → **Silmə** → **Bütün məlumatları sil** |
+| Change your password | The profile button → **Şifrə** → **Dəyiş** |
 | See my account | The round button at the top right |
 | Sign out | The same button → **Çıxış** |
 

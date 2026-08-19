@@ -89,6 +89,40 @@ export async function signIn(email: string, password: string): Promise<void> {
   if (error) throw error
 }
 
+/**
+ * Change the password of the account that is signed in.
+ *
+ * The current password is checked by signing in with it first. Supabase would
+ * accept the change on the strength of the session alone, but a session is
+ * something an unattended browser has too — and the cost of asking is one
+ * field, against somebody being locked out of their own account.
+ */
+export async function changePassword(
+  currentPassword: string,
+  nextPassword: string,
+): Promise<void> {
+  const client = requireAuth()
+
+  const { data } = await client.auth.getSession()
+  const email = data.session?.user.email
+  if (!email) throw new Error('Hesaba daxil olunmayıb')
+
+  const { error: wrongPassword } = await client.auth.signInWithPassword({
+    email,
+    password: currentPassword,
+  })
+  if (wrongPassword) {
+    // The address is not in question during a change, so the sign-in wording
+    // would name the wrong field.
+    throw /invalid login/i.test(wrongPassword.message)
+      ? new Error('Cari şifrə yanlışdır')
+      : wrongPassword
+  }
+
+  const { error } = await client.auth.updateUser({ password: nextPassword })
+  if (error) throw error
+}
+
 export async function signOut(): Promise<void> {
   const client = requireAuth()
   const { error } = await client.auth.signOut()

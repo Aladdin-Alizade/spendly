@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
+  changePassword as changePasswordRequest,
   currentUser,
   isSupabaseConfigured,
   onAuthChange,
@@ -23,6 +24,8 @@ interface AuthContextValue {
   notice: string | null
   signIn(email: string, password: string): Promise<void>
   signUp(email: string, password: string): Promise<void>
+  /** Rejects with a message in the user's own language when it fails. */
+  changePassword(currentPassword: string, nextPassword: string): Promise<void>
   signOut(): Promise<void>
 }
 
@@ -91,6 +94,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               'Hesab yaradıldı. Daxil olmadan əvvəl e-poçtunuza gələn təsdiq linkini açın.',
             )
           }
+        } catch (cause) {
+          throw new Error(authErrorMessage(messageOf(cause)))
+        }
+      },
+
+      async changePassword(currentPassword, nextPassword) {
+        setNotice(null)
+        try {
+          await changePasswordRequest(currentPassword, nextPassword)
         } catch (cause) {
           throw new Error(authErrorMessage(messageOf(cause)))
         }
