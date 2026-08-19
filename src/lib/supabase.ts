@@ -24,20 +24,61 @@ export const supabase = isSupabaseConfigured
   : null
 
 /**
- * Every row belongs to a user, so there has to be one before any read or write.
+ * Authentication.
  *
- * Anonymous sign-in gives this browser a durable identity without a login
- * screen. Requires "Anonymous sign-ins" to be enabled in the Supabase
- * dashboard under Authentication -> Sign In / Providers.
+ * Every row belongs to a user, so there has to be one before any read or
+ * write — the RLS policies match `auth.uid()` and nothing else.
+ *
+ * This used to be an anonymous sign-in, which meant the identity lived in
+ * browser storage: clearing site data, or opening the app elsewhere, minted a
+ * new user and the previous rows became invisible under RLS. They were still
+ * in the tables, owned by an id nothing could produce again. An email account
+ * ties the data to something the user can present from any browser.
  */
-export async function ensureSession(): Promise<string> {
-  if (!supabase) throw new Error('Supabase is not configured')
 
-  const { data: existing } = await supabase.auth.getSession()
-  if (existing.session?.user) return existing.session.user.id
+/** The signed-in user's id, or null when nobody is signed in. */
+export async function currentUserId(): Promise<string | null> {
+  if (!supabase) return null
+  const { data } = await supabase.auth.getSession()
+  return data.session?.user.id ?? null
+}
 
-  const { data, error } = await supabase.auth.signInAnonymously()
+export interface SignUpResult {
+  /** False when Supabase is set to confirm addresses before the first sign-in. */
+  signedIn: boolean
+}
+
+export async function signUp(email: string, password: string): Promise<SignUpResult> {
+  const client = requireAuth()
+  const { data, error } = await client.auth.signUp({ email, password })
   if (error) throw error
-  if (!data.user) throw new Error('Could not establish a Supabase session')
-  return data.user.id
+  // With email confirmation on, Supabase creates the user but no session; the
+  // caller has to say so rather than dropping the user on an empty screen.
+  return { signedIn: data.session !== null }
+}
+
+export async function signIn(email: string, password: string): Promise<void> {
+  const client = requireAuth()
+  const { error } = await client.auth.signInWithPassword({ email, password })
+  if (error) throw error
+}
+
+export async function signOut(): Promise<void> {
+  const client = requireAuth()
+  const { error } = await client.auth.signOut()
+  if (error) throw error
+}
+
+/** Fires on sign-in, sign-out and token refresh. Returns an unsubscribe. */
+export function onAuthChange(listener: (userId: string | null) => void): () => void {
+  if (!supabase) return () => {}
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    listener(session?.user.id ?? null)
+  })
+  return () => data.subscription.unsubscribe()
+}
+
+function requireAuth() {
+  if (!supabase) throw new Error('Supabase is not configured')
+  return supabase
 }

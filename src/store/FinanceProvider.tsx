@@ -12,6 +12,7 @@ import { LocalStorageRepository, emptyData } from '../lib/storage'
 import type { FinanceRepository } from '../lib/storage'
 import { round2 } from '../lib/money'
 import { budgetTemplate } from '../lib/seed'
+import { describeError } from '../lib/setupHints'
 import {
   addCategory as addCategoryTo,
   removeCategory as removeCategoryFrom,
@@ -36,6 +37,9 @@ interface FinanceContextValue {
    * Set when the last write did not reach the backend. The edit is still on
    * screen — it is in local state — but it is not saved, and saying nothing
    * would let it read as though it were.
+   *
+   * An empty string is a failure with nothing further to say about it; `null`
+   * means the last write succeeded.
    */
   saveError: string | null
   dismissSaveError(): void
@@ -126,10 +130,10 @@ export function FinanceProvider({
       const next = update(previous)
       repo.current.save(next).then(
         () => setSaveError(null),
-        (cause: unknown) =>
-          setSaveError(
-            cause instanceof Error ? cause.message : 'Dəyişiklik yadda saxlanılmadı',
-          ),
+        // An empty description still means the write failed, so it is kept as
+        // a marker: the banner then says that much and nothing it cannot back
+        // up. `null` is the only value that means "saved".
+        (cause: unknown) => setSaveError(describeError(cause)),
       )
       return next
     })

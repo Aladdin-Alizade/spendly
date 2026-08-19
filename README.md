@@ -139,15 +139,20 @@ publishable key, then do two things in the Supabase dashboard:
 1. **Create the tables** — paste [`supabase/schema.sql`](supabase/schema.sql)
    into the SQL editor and run it. Running it again later is safe; that is how
    you pick up changes.
-2. **Turn on anonymous sign-ins** — Authentication → Sign In / Providers.
+2. **Turn on the Email provider** — Authentication → Sign In / Providers.
 
 Until both are done the app tells you which step is missing instead of showing
 a raw error.
 
-Anonymous sign-in means there is no login screen, but your identity lives in
-that browser: clearing site data or opening the app on another device starts a
-fresh, empty account. Your data is still private — the database only ever
-returns rows belonging to your own identity.
+You then create an account in the app itself: **Qeydiyyat**, an email address
+and a password. Your data belongs to that account, so it opens on any browser
+or device you sign in from. It stays private — the database only ever returns
+rows belonging to your own account.
+
+If Supabase is set to confirm email addresses (the default), the app tells you
+to open the confirmation link before your first sign-in. For a personal tool
+you can turn confirmation off under Authentication → Sign In / Providers →
+Email.
 
 ---
 
@@ -163,8 +168,14 @@ marked `kateqoriya silinib`, and stays editable — so you can move it or zero i
 out on purpose. The app will not silently drop a figure to make a list look
 tidy.
 
-**"It says anonymous sign-ins are disabled."** Step 2 of the Supabase setup
-above.
+**"It says sign-up is closed."** Step 2 of the Supabase setup above — the
+Email provider is off.
+
+**"My data is gone after I signed in."** Data belongs to an account. Anything
+recorded before you created one belonged to a temporary browser identity, and
+is still in the database under that old id — see
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the query that moves it
+across.
 
 **"It cannot find a table."** Step 1 of the Supabase setup above.
 
@@ -173,7 +184,7 @@ above.
 ## Development
 
 ```bash
-npm test         # 136 tests
+npm test         # 157 tests
 npm run build
 ```
 

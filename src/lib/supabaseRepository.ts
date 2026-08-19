@@ -9,7 +9,7 @@
  * which keeps the remote state consistent with what is on screen.
  */
 
-import { supabase, ensureSession } from './supabase'
+import { supabase, currentUserId } from './supabase'
 import { defaultCategories, migrateCategory, migrateIncomePlan } from './types'
 import { emptyData } from './storage'
 import type { FinanceRepository } from './storage'
@@ -32,7 +32,7 @@ export class SupabaseRepository implements FinanceRepository {
 
   async load(): Promise<FinanceData> {
     const client = requireClient()
-    this.userId = await ensureSession()
+    this.userId = await requireUser()
 
     const [transactions, budgetLines, incomePlans, categories] = await Promise.all([
       client.from('transactions').select('*'),
@@ -82,7 +82,7 @@ export class SupabaseRepository implements FinanceRepository {
 
   private async write(before: FinanceData, after: FinanceData): Promise<void> {
     const client = requireClient()
-    const userId = this.userId ?? (await ensureSession())
+    const userId = this.userId ?? (await requireUser())
     this.userId = userId
 
     const jobs: PromiseLike<{ error: unknown }>[] = []
@@ -202,6 +202,17 @@ function withMonthKey(plan: IncomePlan): IncomePlan & { id: string } {
 function requireClient() {
   if (!supabase) throw new Error('Supabase is not configured')
   return supabase
+}
+
+/**
+ * The repository never signs anyone in. The app decides who is signed in and
+ * only mounts this once someone is, so reaching here without a session is a
+ * bug rather than a state to recover from.
+ */
+async function requireUser(): Promise<string> {
+  const userId = await currentUserId()
+  if (!userId) throw new Error('Hesaba daxil olunmayıb')
+  return userId
 }
 
 /* --- row mapping. Postgres numerics can arrive as strings. ----------- */

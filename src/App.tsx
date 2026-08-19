@@ -7,6 +7,7 @@ import { Budget } from './screens/Budget'
 import { knownMonths } from './lib/calc'
 import { currentMonth, monthOf, today } from './lib/dates'
 import { useFinance } from './store/FinanceProvider'
+import { useAuth } from './store/AuthProvider'
 import { setupHint } from './lib/setupHints'
 import type { MonthKey, Transaction } from './lib/types'
 
@@ -75,10 +76,13 @@ export function App() {
           >
             Əlavə et
           </button>
+          <SignOutButton />
         </div>
       </header>
 
-      {saveError && <SaveBanner message={saveError} onDismiss={dismissSaveError} />}
+      {saveError !== null && (
+        <SaveBanner message={saveError} onDismiss={dismissSaveError} />
+      )}
 
       <main className="shell">
         {screen === 'dashboard' && (
@@ -135,6 +139,23 @@ export function App() {
 }
 
 
+/** Present only when there is an account to leave; in local-storage mode
+ *  there is nobody signed in. */
+function SignOutButton() {
+  const { status, signOut } = useAuth()
+  if (status !== 'signed-in') return null
+
+  return (
+    <button
+      type="button"
+      className="button button-quiet hide-mobile"
+      onClick={() => void signOut()}
+    >
+      Çıxış
+    </button>
+  )
+}
+
 /**
  * A write did not reach the backend.
  *
@@ -152,14 +173,23 @@ function SaveBanner({
 }) {
   const hint = setupHint(message)
 
+  /* The headline already says the write failed. Repeating a generic message
+     underneath it says it twice and adds nothing, so only a hint or a message
+     that actually carries detail is shown. */
+  const guidance = hint ?? (message.trim() === '' ? null : message)
+
   return (
     <div className="save-banner" role="alert">
       <div className="save-banner-inner">
         <span className="save-banner-text">
           <strong>Dəyişiklik yadda saxlanılmadı.</strong>{' '}
-          {hint ?? message} Səhifəni yeniləsəniz, son dəyişiklik itəcək.
+          {guidance && <>{guidance} </>}
+          Səhifəni yeniləsəniz, son dəyişiklik itəcək.
         </span>
-        {hint && <span className="save-banner-detail">{message}</span>}
+        {/* The raw error, when a hint stood in for it. */}
+        {hint && message.trim() !== '' && (
+          <span className="save-banner-detail">{message}</span>
+        )}
         <button
           type="button"
           className="icon-button"

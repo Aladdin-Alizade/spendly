@@ -30,13 +30,48 @@ storage when it is not. Nothing above `FinanceRepository` knows the difference.
 The publishable key ships inside the JavaScript bundle, so it is public by
 design and cannot be what keeps the data private. Row level security does that:
 every row carries a `user_id` and the policies only ever match `auth.uid()`.
-Anonymous sign-in gives the browser a durable identity so those policies have
-something to match, without putting a login screen in front of a personal tool.
+Signing in is what gives those policies something to match.
 
-The trade-off is that an anonymous identity lives in browser storage. Clearing
-site data, or opening the app on another device, starts a new empty account.
-Switching to email sign-in later is a change to `ensureSession()` only — the
-schema and policies already work for it.
+It used to be an **anonymous** sign-in, chosen to keep a login screen out of a
+personal tool. That put the identity in browser storage, and the failure mode
+was bad in a way that is easy to miss: clearing site data, or opening the app
+in another browser, minted a *new* anonymous user. The previous rows were never
+deleted — they stayed in the tables under an id that nothing could produce
+again, so the app showed an empty account and the data looked lost.
+
+Email accounts remove the failure entirely. `AuthProvider` owns the session,
+`Root` renders the sign-in screen until there is one, and `SupabaseRepository`
+never signs anyone in — it asks for the current user and fails loudly if there
+is none, because reaching it without a session is a bug rather than a state to
+recover from.
+
+The repository is keyed by user id, so signing into a different account
+remounts the store rather than leaving the previous account's figures on
+screen.
+
+#### Recovering rows stranded under an old anonymous id
+
+Run in the SQL editor, which bypasses RLS:
+
+```sql
+select 'transactions' as tbl, user_id, count(*) from public.transactions group by user_id
+union all select 'budget_lines', user_id, count(*) from public.budget_lines group by user_id
+union all select 'income_plans', user_id, count(*) from public.income_plans group by user_id
+union all select 'categories',   user_id, count(*) from public.categories   group by user_id
+order by 1, 3 desc;
+```
+
+Then move the old identity's rows onto the account's id. Do it before making
+any edits under the new account: `categories` is unique on
+`(user_id, type, name)`, so a freshly seeded default set collides with a
+restored one.
+
+```sql
+update public.transactions set user_id = 'NEW_ID' where user_id = 'OLD_ID';
+update public.budget_lines  set user_id = 'NEW_ID' where user_id = 'OLD_ID';
+update public.income_plans  set user_id = 'NEW_ID' where user_id = 'OLD_ID';
+update public.categories    set user_id = 'NEW_ID' where user_id = 'OLD_ID';
+```
 
 ### Writes
 
