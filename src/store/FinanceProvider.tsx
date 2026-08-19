@@ -13,6 +13,8 @@ import type { FinanceRepository } from '../lib/storage'
 import { round2 } from '../lib/money'
 import { budgetTemplate } from '../lib/seed'
 import { describeError } from '../lib/setupHints'
+import { SyncingRepository } from '../lib/syncingRepository'
+import type { SyncState } from '../lib/syncingRepository'
 import {
   addCategory as addCategoryTo,
   removeCategory as removeCategoryFrom,
@@ -36,15 +38,15 @@ interface FinanceContextValue {
   /** Set when loading failed, so the UI can say what went wrong. */
   error: string | null
   /**
-   * Set when the last write did not reach the backend. The edit is still on
-   * screen — it is in local state — but it is not saved, and saying nothing
-   * would let it read as though it were.
-   *
-   * An empty string is a failure with nothing further to say about it; `null`
-   * means the last write succeeded.
+   * Where this browser stands against the server. Local-only mode has nothing
+   * to sync with, so it stays `synced`.
    */
-  saveError: string | null
-  dismissSaveError(): void
+  sync: SyncState
+  /** The user closed the current sync message; a new one shows again. */
+  syncMessageDismissed: boolean
+  dismissSyncMessage(): void
+  /** Send whatever is queued, now. */
+  syncNow(): void
   retry(): void
   addTransaction(transaction: Omit<Transaction, 'id'>): void
   updateTransaction(id: string, patch: Omit<Transaction, 'id'>): void
@@ -98,7 +100,8 @@ export function FinanceProvider({
   const [data, setData] = useState<FinanceData>(emptyData)
   const [status, setStatus] = useState<LoadStatus>('loading')
   const [error, setError] = useState<string | null>(null)
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [sync, setSync] = useState<SyncState>({ status: 'synced', message: null })
+  const [syncMessageDismissed, setSyncMessageDismissed] = useState(false)
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
@@ -124,21 +127,59 @@ export function FinanceProvider({
     }
   }, [attempt])
 
+  /** The repository reports where it stands; the UI reads it from here. */
+  useEffect(() => {
+    const syncing = repo.current
+    if (!(syncing instanceof SyncingRepository)) return
+
+    return syncing.subscribe((state) => {
+      setSync(state)
+      setSyncMessageDismissed(false)
+    })
+  }, [])
+
+  const syncNow = useCallback(() => {
+    const syncing = repo.current
+    if (!(syncing instanceof SyncingRepository)) return
+
+    void syncing.sync().then((merged) => {
+      if (merged) setData(merged)
+    })
+  }, [])
+
+  /**
+   * Coming back online is the moment queued work can go out, and so is
+   * returning to the tab. Nothing retries on a timer, because a timer fails at
+   * exactly the rate of the thing that is not there.
+   */
+  useEffect(() => {
+    if (!(repo.current instanceof SyncingRepository)) return
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') syncNow()
+    }
+    window.addEventListener('online', syncNow)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('online', syncNow)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [syncNow])
+
   /**
    * Local state updates immediately and the write follows, so editing never
-   * waits on the network. A failed write is reported by the repository and
-   * reconciled on the next load rather than rolling the screen back mid-edit.
+   * waits on the network. A write that cannot reach the server is queued by
+   * the repository rather than rolling the screen back mid-edit.
    */
   const commit = useCallback((update: (previous: FinanceData) => FinanceData) => {
     setData((previous) => {
       const next = update(previous)
-      repo.current.save(next).then(
-        () => setSaveError(null),
-        // An empty description still means the write failed, so it is kept as
-        // a marker: the banner then says that much and nothing it cannot back
-        // up. `null` is the only value that means "saved".
-        (cause: unknown) => setSaveError(describeError(cause)),
-      )
+      // The syncing repository reports through its own state; this catches the
+      // local-only path, where a failure to write this browser's own storage
+      // is the whole story.
+      repo.current.save(next).catch((cause: unknown) => {
+        setSync({ status: 'failed', message: describeError(cause) })
+      })
       return next
     })
   }, [])
@@ -148,8 +189,10 @@ export function FinanceProvider({
       data,
       status,
       error,
-      saveError,
-      dismissSaveError: () => setSaveError(null),
+      sync,
+      syncMessageDismissed,
+      dismissSyncMessage: () => setSyncMessageDismissed(true),
+      syncNow,
       retry: () => setAttempt((value) => value + 1),
 
       addTransaction(transaction) {
@@ -308,7 +351,7 @@ export function FinanceProvider({
         }))
       },
     }),
-    [data, status, error, saveError, commit],
+    [data, status, error, sync, syncMessageDismissed, syncNow, commit],
   )
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>

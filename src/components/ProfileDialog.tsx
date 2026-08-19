@@ -6,6 +6,7 @@ import { categoriesOfType } from '../lib/categories'
 import { runningBalance } from '../lib/calc'
 import { useAuth } from '../store/AuthProvider'
 import { useFinance } from '../store/FinanceProvider'
+import type { SyncState } from '../lib/syncingRepository'
 
 /**
  * The account, and what it holds.
@@ -17,7 +18,7 @@ import { useFinance } from '../store/FinanceProvider'
  */
 export function ProfileDialog({ onClose }: { onClose: () => void }) {
   const { status, user, signOut } = useAuth()
-  const { data } = useFinance()
+  const { data, sync, syncNow } = useFinance()
   const [copied, setCopied] = useState(false)
   const [confirmingSignOut, setConfirmingSignOut] = useState(false)
 
@@ -105,6 +106,22 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
             </p>
           )}
 
+          {status === 'signed-in' && (
+            <div className="profile-sync">
+              <span className="profile-sync-text">
+                <span className="micro">Sinxronizasiya</span>
+                <span className={`profile-sync-state${syncTone(sync.status)}`}>
+                  {syncLabel(sync)}
+                </span>
+              </span>
+              {sync.status !== 'synced' && (
+                <button type="button" className="button button-quiet" onClick={syncNow}>
+                  İndi göndər
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="profile-stats">
             <Stat label="Əməliyyat" value={String(data.transactions.length)} />
             <Stat label="Xərc / gəlir" value={`${expenses} / ${income}`} />
@@ -148,6 +165,25 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
       </div>
     </div>
   )
+}
+
+/** What the sync state means, in the user's own language. */
+function syncLabel(sync: SyncState): string {
+  switch (sync.status) {
+    case 'synced':
+      return 'Hər şey hesabda saxlanılıb'
+    case 'pending':
+      return 'Bu brauzerdə gözləyən dəyişiklik var'
+    case 'offline':
+      return 'Oflayn — serverə çıxış yoxdur'
+    case 'failed':
+      return sync.message?.trim() || 'Server dəyişikliyi qəbul etmədi'
+  }
+}
+
+function syncTone(status: SyncState['status']): string {
+  if (status === 'synced') return ' pos'
+  return status === 'failed' ? ' neg' : ''
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

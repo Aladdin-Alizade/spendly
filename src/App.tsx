@@ -11,6 +11,7 @@ import { currentMonth, monthOf, today } from './lib/dates'
 import { useFinance } from './store/FinanceProvider'
 import { useAuth } from './store/AuthProvider'
 import { setupHint } from './lib/setupHints'
+import type { SyncState } from './lib/syncingRepository'
 import type { MonthKey, Transaction } from './lib/types'
 
 type Screen = 'dashboard' | 'transactions' | 'budget' | 'advice'
@@ -27,8 +28,10 @@ export function App() {
     data,
     status,
     error,
-    saveError,
-    dismissSaveError,
+    sync,
+    syncMessageDismissed,
+    dismissSyncMessage,
+    syncNow,
     retry,
     addTransaction,
     updateTransaction,
@@ -84,8 +87,8 @@ export function App() {
         </div>
       </header>
 
-      {saveError !== null && (
-        <SaveBanner message={saveError} onDismiss={dismissSaveError} />
+      {!syncMessageDismissed && (
+        <SyncBanner sync={sync} onRetry={syncNow} onDismiss={dismissSyncMessage} />
       )}
 
       <main className="shell">
@@ -169,34 +172,57 @@ function AccountButton({ onOpen }: { onOpen: () => void }) {
 }
 
 /**
- * A write did not reach the backend.
+ * Where this browser stands against the server.
  *
- * The edit is still on screen because local state accepted it, which is
- * exactly why this has to be said out loud — otherwise an unsaved figure is
- * indistinguishable from a saved one until the page is reloaded and it is
- * gone.
+ * Three different things, and they must not be said in the same voice. Queued
+ * work is not a failure — the edit is in this browser's own storage and will
+ * go out on its own — so it gets a quiet line and no alarm. A rejection from
+ * the server is a failure, needs a person, and says which step fixes it.
+ * Everything in order says nothing at all.
  */
-function SaveBanner({
-  message,
+function SyncBanner({
+  sync,
+  onRetry,
   onDismiss,
 }: {
-  message: string
+  sync: SyncState
+  onRetry: () => void
   onDismiss: () => void
 }) {
+  if (sync.status === 'synced') return null
+
+  if (sync.status === 'pending' || sync.status === 'offline') {
+    return (
+      <div className="sync-banner" role="status">
+        <div className="sync-banner-inner">
+          <span className="sync-banner-text">
+            {sync.status === 'pending'
+              ? 'Dəyişikliklər bu brauzerdə saxlanılıb, sinxronizasiya gözləyir.'
+              : 'Oflayn rejim — məlumatlar bu brauzerdən oxunur.'}
+          </span>
+          <button type="button" className="button button-quiet" onClick={onRetry}>
+            İndi göndər
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const message = sync.message ?? ''
   const hint = setupHint(message)
 
-  /* The headline already says the write failed. Repeating a generic message
-     underneath it says it twice and adds nothing, so only a hint or a message
-     that actually carries detail is shown. */
+  /* The headline already says the write did not land. Repeating a generic
+     message underneath it says it twice and adds nothing, so only a hint or a
+     message that actually carries detail is shown. */
   const guidance = hint ?? (message.trim() === '' ? null : message)
 
   return (
     <div className="save-banner" role="alert">
       <div className="save-banner-inner">
         <span className="save-banner-text">
-          <strong>Dəyişiklik yadda saxlanılmadı.</strong>{' '}
+          <strong>Server dəyişikliyi qəbul etmədi.</strong>{' '}
           {guidance && <>{guidance} </>}
-          Səhifəni yeniləsəniz, son dəyişiklik itəcək.
+          Dəyişiklik bu brauzerdə saxlanılıb.
         </span>
         {/* The raw error, when a hint stood in for it. */}
         {hint && message.trim() !== '' && (

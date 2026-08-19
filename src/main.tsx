@@ -6,11 +6,13 @@ import { AuthProvider, useAuth } from './store/AuthProvider'
 import { FinanceProvider } from './store/FinanceProvider'
 import { LocalStorageRepository } from './lib/storage'
 import { SupabaseRepository } from './lib/supabaseRepository'
+import { SyncingRepository } from './lib/syncingRepository'
 import { isSupabaseConfigured } from './lib/supabase'
 import './styles.css'
 
 /**
- * Supabase when it is configured, this browser's own storage otherwise.
+ * This browser's own storage always; Supabase on top of it when a project is
+ * configured, so an edit is saved before anything is asked of the network.
  * Nothing below the repository knows which one it got.
  */
 function Root() {
@@ -39,7 +41,9 @@ function Root() {
     <FinanceProvider
       key={userId ?? 'local'}
       repository={
-        isSupabaseConfigured ? new SupabaseRepository() : new LocalStorageRepository()
+        isSupabaseConfigured
+          ? new SyncingRepository(new SupabaseRepository())
+          : new LocalStorageRepository()
       }
     >
       <App />

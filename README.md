@@ -157,8 +157,13 @@ are always comparing like with like.
 
 ## Where your data lives
 
-**By default, in your browser.** No account, no server, nothing leaves your
-machine. Clearing your browser data clears the app.
+**Always in your browser first.** Every change is written to this browser's
+own storage before anything is asked of the network, so an edit made on a bad
+connection is saved rather than held on screen and lost when the tab closes.
+
+With no Supabase project configured that storage is the whole story: no
+account, no server, nothing leaves your machine. Clearing your browser data
+clears the app.
 
 **Optionally, in your own Supabase project**, which gets you a real database
 and a backup. Copy `.env.example` to `.env`, fill in your project URL and
@@ -181,6 +186,27 @@ If Supabase is set to confirm email addresses (the default), the app tells you
 to open the confirmation link before your first sign-in. For a personal tool
 you can turn confirmation off under Authentication → Sign In / Providers →
 Email.
+
+### Being offline
+
+Losing the connection is a normal state here, not a failure. The browser's copy
+stays the working copy; the account is where it is shared from. When the server
+cannot be reached the app says *"dəyişikliklər bu brauzerdə saxlanılıb,
+sinxronizasiya gözləyir"* and carries on. The queue goes out on its own when
+the connection returns, when you come back to the tab, or when you press **İndi
+göndər** — in the banner, or in the profile.
+
+Bringing the two together follows one rule: **rows this browser changed while
+it could not reach the server win; every other row comes from the server.** So
+work done here is never silently replaced by what another device had, and
+anything entered elsewhere meanwhile still arrives. Two devices editing the
+very same transaction while both offline is the case it cannot resolve — the
+one that syncs second wins, and nothing is lost that was not deliberately
+replaced.
+
+A rejection from the server is a different thing from being offline, and is
+said differently: the red banner means the server answered and refused, and it
+names the step that fixes it. Your change is saved either way.
 
 ---
 

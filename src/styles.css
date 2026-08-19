@@ -2300,3 +2300,60 @@ h1, h2, h3 {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ---------------------------------------------------------------
+   Sync state.
+
+   Queued work is not a failure — it is saved, it is just not sent
+   yet — so it reads as a quiet line rather than as the alarm the
+   save banner is.
+   --------------------------------------------------------------- */
+
+.sync-banner {
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border);
+}
+
+.sync-banner-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 8px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sync-banner-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.profile-sync {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface-inset);
+  border-radius: var(--radius-sm);
+}
+
+.profile-sync-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-sync-state {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.profile-sync-state.pos {
+  color: var(--positive);
+}
+
+.profile-sync-state.neg {
+  color: var(--negative);
+}
