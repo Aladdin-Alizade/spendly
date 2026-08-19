@@ -153,7 +153,15 @@ interface Context {
 
 type Rule = (context: Context) => void
 
+/** Magnitude only — for "X% higher", where the direction is in the words. */
 const percent = (ratio: number) => `${Math.round(Math.abs(ratio) * 100)}%`
+
+/** Keeps the sign, for a rate that can genuinely be negative. A retained rate
+ *  of −16% shown as 16% turns the sentence into nonsense. */
+const signed = (ratio: number) => `${Math.round(ratio * 100)}%`
+
+/** The gap between two rates is in points, so it carries no per-cent sign. */
+const points = (ratio: number) => `${Math.round(Math.abs(ratio) * 100)}`
 
 /* --- what the month looks like against income --------------------- */
 
@@ -222,9 +230,11 @@ const retainedTrend: Rule = ({ data, month, health, add, skip }) => {
     method: 'retained',
     priority: gap > 0 ? 'good' : 'review',
     fact:
+      // The gap between two rates is in percentage points, not per cent — and
+      // either rate can be negative, so both keep their sign.
       gap > 0
-        ? `Qalan pulun payı son ${rates.length} ayın ortalamasından ${percent(gap)} yüksəkdir (${percent(health.retainedRate)} / ${percent(average)}).`
-        : `Qalan pulun payı son ${rates.length} ayın ortalamasından ${percent(gap)} aşağıdır (${percent(health.retainedRate)} / ${percent(average)}).`,
+        ? `Qalan pulun payı son ${rates.length} ayın ortalamasından ${points(gap)} faiz bəndi yüksəkdir (${signed(health.retainedRate)} / ${signed(average)}).`
+        : `Qalan pulun payı son ${rates.length} ayın ortalamasından ${points(gap)} faiz bəndi aşağıdır (${signed(health.retainedRate)} / ${signed(average)}).`,
     suggestion:
       gap < 0
         ? 'Fərqin gəlirin azalmasından, yoxsa xərcin artmasından gəldiyini nəzərdən keçirməyə dəyər.'

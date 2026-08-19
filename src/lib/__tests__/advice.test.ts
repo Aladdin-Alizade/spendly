@@ -379,3 +379,25 @@ describe('one subject per bucket', () => {
     expect(subjects).toContain('Nəqliyyat')
   })
 })
+
+describe('signed rates', () => {
+  it('does not print a negative retained rate as a positive one', () => {
+    // A month that overspent has a negative retained rate. Showing it as its
+    // magnitude turned the comparison into "16% / 16%", which says nothing.
+    const months = ['2026-05', '2026-06', '2026-07']
+    const data = build({
+      transactions: [
+        ...months.map((m) => income(m, 1000)),
+        ...months.map((m) => spend(m, 'Ərzaq', 800)),
+        income(M, 1000),
+        spend(M, 'Ərzaq', 1200),
+      ],
+    })
+
+    const advice = all(budgetAdvice(data, M, TODAY)).find((a) => a.id === 'retained-trend')
+    expect(advice?.fact).toContain('-20%')
+    // Points, not per cent: "32% faiz bəndi" says percentage twice.
+    expect(advice?.fact).toMatch(/\d+ faiz bəndi/)
+    expect(advice?.fact).not.toMatch(/%\s*faiz bəndi/)
+  })
+})
