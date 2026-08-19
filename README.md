@@ -263,3 +263,30 @@ npm run build
 
 How the numbers are derived, what the analytics rules are and why the code is
 laid out the way it is: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+---
+
+## Publishing it
+
+The app is static once built, so GitHub Pages can host it. Pushing to `main`
+runs [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), which
+builds and publishes `dist/`. The site lands at
+**https://aladdin-alizade.github.io/spendly/**.
+
+Three things have to be set up once, outside the repository:
+
+1. **Settings -> Pages -> Source**: choose *GitHub Actions*. Without this the
+   workflow builds and then has nowhere to put the result.
+2. **Settings -> Secrets and variables -> Actions -> Variables**: add
+   `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. They are read at
+   build time and end up in the bundle, which is fine — access is enforced by
+   RLS, not by hiding the publishable key. The service_role key does not belong
+   here. Leave them out and the deployed app still runs, but on browser-only
+   storage with no accounts.
+3. **Supabase -> Authentication -> URL Configuration**: add
+   `https://aladdin-alizade.github.io/spendly/` as the Site URL and to the
+   redirect list, or password-reset links will refuse to land back on the app.
+
+The address is served from `/spendly/`, not from the domain root, which is why
+`vite.config.ts` sets `base`. If the repository is ever renamed, that value and
+the Supabase redirect have to be renamed with it.

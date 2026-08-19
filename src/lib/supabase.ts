@@ -151,14 +151,16 @@ export function onAuthChange(
  * Send the reset link.
  *
  * `redirectTo` is where the link lands after Supabase has verified it — this
- * app, on whatever host it is being served from. The address has to be listed
- * under Authentication -> URL Configuration or Supabase refuses to redirect
- * there, which is what stops a link being pointed at somebody else's site.
+ * app, on whatever host it is being served from. The origin alone is not the
+ * app when it is served from a subpath, as it is on GitHub Pages, so the base
+ * goes on too. The address has to be listed under Authentication -> URL
+ * Configuration or Supabase refuses to redirect there, which is what stops a
+ * link being pointed at somebody else's site.
  */
 export async function sendPasswordReset(email: string): Promise<void> {
   const client = requireAuth()
   const { error } = await client.auth.resetPasswordForEmail(email.trim(), {
-    redirectTo: window.location.origin,
+    redirectTo: new URL(import.meta.env.BASE_URL, window.location.origin).href,
   })
   if (error) throw error
 }
