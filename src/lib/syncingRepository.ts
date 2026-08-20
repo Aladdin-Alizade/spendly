@@ -35,12 +35,33 @@ export interface SyncState {
   message: string | null
 }
 
-/** The working copy — what the app reads and writes, online or not. */
+/**
+ * The working copy — what the app reads and writes, online or not.
+ *
+ * This bare key belongs to the browser rather than to any account: it is what
+ * local-storage mode uses, and what a browser held before it had an account.
+ * A signed-in account gets its own key, from `workingKey`.
+ */
 const WORKING_KEY = 'spendly.data.v1'
 
 /** The last snapshot known to be on the server, used to tell this browser's
  *  unsent work from rows it simply has not seen yet. */
 const SYNCED_KEY = 'spendly.synced.v1'
+
+/**
+ * One account, one key.
+ *
+ * These used to be one key per browser, shared by every account that ever
+ * signed in there — and the sync treats whatever the key holds as work this
+ * browser has not sent yet. So signing in handed the previous occupant's rows
+ * to the new account and uploaded them, and after that they belonged to it:
+ * records its owner never entered, in their totals, on every device they own.
+ */
+export const workingKey = (userId?: string | null) =>
+  userId ? `${WORKING_KEY}:${userId}` : WORKING_KEY
+
+export const syncedKey = (userId?: string | null) =>
+  userId ? `${SYNCED_KEY}:${userId}` : SYNCED_KEY
 
 export function readSnapshot(key: string): FinanceData | null {
   try {
@@ -91,7 +112,40 @@ export class SyncingRepository implements FinanceRepository {
    *  interleave with a save the user just made. */
   private queue: Promise<unknown> = Promise.resolve()
 
-  constructor(private readonly remote: FinanceRepository) {}
+  private readonly working: string
+  private readonly synced: string
+
+  constructor(
+    private readonly remote: FinanceRepository,
+    /** Whose snapshots these are. Absent only in the modes with no account. */
+    userId?: string | null,
+  ) {
+    this.working = workingKey(userId)
+    this.synced = syncedKey(userId)
+  }
+
+  /**
+   * Work entered before there was an account to put it in.
+   *
+   * It is taken over once, by the first account to sign in in this browser,
+   * and the key is removed as it is taken — so the second account to sign in
+   * here inherits nothing. That distinction is the whole point: carrying
+   * somebody's pre-account work forward is a feature, and handing it to
+   * whoever signs in next is how records nobody wrote end up in an account
+   * and, from there, in every total it computes.
+   */
+  private adoptPreAccountWork(): FinanceData | null {
+    if (this.working === WORKING_KEY) return null
+    const carried = readSnapshot(WORKING_KEY)
+    if (!carried) return null
+    writeSnapshot(this.working, carried)
+    try {
+      localStorage.removeItem(WORKING_KEY)
+    } catch {
+      // Nothing to do about a storage that will not forget.
+    }
+    return carried
+  }
 
   subscribe(listener: (state: SyncState) => void): () => void {
     this.listeners.add(listener)
@@ -103,7 +157,7 @@ export class SyncingRepository implements FinanceRepository {
 
   async load(): Promise<FinanceData> {
     return this.serialise(async () => {
-      const local = readSnapshot(WORKING_KEY) ?? emptyData
+      const local = readSnapshot(this.working) ?? this.adoptPreAccountWork() ?? emptyData
       return (await this.reconcile(local)) ?? local
     })
   }
@@ -111,12 +165,12 @@ export class SyncingRepository implements FinanceRepository {
   async save(data: FinanceData): Promise<void> {
     await this.serialise(async () => {
       // The browser first, always. Everything after this is delivery.
-      writeSnapshot(WORKING_KEY, data)
+      writeSnapshot(this.working, data)
 
       try {
         if (this.reconciled) {
           await this.remote.save(data)
-          writeSnapshot(SYNCED_KEY, data)
+          writeSnapshot(this.synced, data)
           this.set({ status: 'synced', message: null })
         } else {
           // Nothing has been reconciled with the server yet this session, so
@@ -136,7 +190,7 @@ export class SyncingRepository implements FinanceRepository {
    */
   async sync(): Promise<FinanceData | null> {
     return this.serialise(async () => {
-      const local = readSnapshot(WORKING_KEY)
+      const local = readSnapshot(this.working)
       return local === null ? null : await this.reconcile(local)
     })
   }
@@ -152,7 +206,7 @@ export class SyncingRepository implements FinanceRepository {
       remoteData = await this.remote.load()
     } catch (cause) {
       if (isOfflineError(cause)) {
-        const base = readSnapshot(SYNCED_KEY) ?? emptyData
+        const base = readSnapshot(this.synced) ?? emptyData
         this.set({
           status: hasPendingWork(base, local) ? 'pending' : 'offline',
           message: null,
@@ -168,21 +222,21 @@ export class SyncingRepository implements FinanceRepository {
     /* No baseline means this browser has never synced: everything it holds is
        treated as unsent rather than as already-known, because the other
        reading loses work that was entered before the account existed. */
-    const base = readSnapshot(SYNCED_KEY) ?? emptyData
+    const base = readSnapshot(this.synced) ?? emptyData
     const merged = mergeFinanceData(base, local, remoteData)
 
     try {
       if (JSON.stringify(merged) !== JSON.stringify(remoteData)) {
         await this.remote.save(merged)
       }
-      writeSnapshot(WORKING_KEY, merged)
-      writeSnapshot(SYNCED_KEY, merged)
+      writeSnapshot(this.working, merged)
+      writeSnapshot(this.synced, merged)
       this.set({ status: 'synced', message: null })
       return merged
     } catch (cause) {
       // The read got through and the write did not; the merge is still the
       // best copy this browser has, so it is kept and queued.
-      writeSnapshot(WORKING_KEY, merged)
+      writeSnapshot(this.working, merged)
       this.report(cause)
       return merged
     }

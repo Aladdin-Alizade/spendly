@@ -8,6 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { LocalStorageRepository, emptyData, normaliseData } from '../storage'
 import type { FinanceData } from '../types'
+import { syncedKey, workingKey } from '../syncingRepository'
 
 const KEY = 'spendly.data.v1'
 
@@ -84,5 +85,32 @@ describe('reading a stored snapshot', () => {
       categories: [{ id: 'c1', name: 'Kirayə', type: 'expense' }],
     }
     expect(normaliseData(stored).categories).toEqual(stored.categories)
+  })
+})
+
+/**
+ * Which key a snapshot goes in.
+ *
+ * This used to be one key per browser, which meant it was shared by every
+ * account that ever signed in there — and the sync treats whatever the key
+ * holds as work this browser has not sent yet. So signing in handed the
+ * previous occupant's rows to the new account and uploaded them as its own.
+ */
+describe('snapshot scope', () => {
+  it('does not let two accounts share one browser key', () => {
+    const one = workingKey('11111111-1111-1111-1111-111111111111')
+    const two = workingKey('22222222-2222-2222-2222-222222222222')
+
+    expect(one).not.toBe(two)
+    expect(one).not.toBe(workingKey(null))
+    expect(syncedKey('11111111-1111-1111-1111-111111111111')).not.toBe(one)
+  })
+
+  it('keeps the plain keys when there is no account to scope to', () => {
+    // Local-storage mode has nobody to scope to, and a browser that has never
+    // signed in has to keep writing where it already writes.
+    expect(workingKey(null)).toBe('spendly.data.v1')
+    expect(workingKey(undefined)).toBe('spendly.data.v1')
+    expect(syncedKey(null)).toBe('spendly.synced.v1')
   })
 })
