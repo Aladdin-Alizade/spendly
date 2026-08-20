@@ -16,7 +16,26 @@ const SETUP_HINTS: { match: RegExp; hint: string }[] = [
     hint: 'Qeydiyyat Supabase panelində bağlıdır. Authentication → Sign In / Providers bölməsindən Email provayderini və qeydiyyatı aktiv edin.',
   },
   {
-    match: /hesaba daxil olunmayıb|not signed in|JWT|session/i,
+    /*
+     * A token stamped ahead of the server's clock. It is not an ended session
+     * and signing in again does not fix it — a new token is stamped further
+     * ahead still. The app already waits and retries; this is what is left to
+     * say when the two clocks are far enough apart that waiting did not help.
+     */
+    match: /PGRST303|issued at future/i,
+    hint:
+      'Cihazınızın saatı ilə server saatı uyğun gəlmir. Sistemin tarix və ' +
+      'saatını avtomatik rejimə keçirin — dəyişikliyiniz bu brauzerdə ' +
+      'saxlanılıb və saatlar uyğunlaşan kimi göndəriləcək.',
+  },
+  {
+    /*
+     * Only what actually ends a session. "JWT" on its own used to match here,
+     * which swept up every token complaint the backend has — including the one
+     * above — and told people who had never logged out to log in again.
+     */
+    match:
+      /hesaba daxil olunmayıb|not signed in|sessiya bitib|invalid refresh token|refresh token not found|invalid_grant/i,
     hint: 'Sessiya bitib. Yenidən daxil olun.',
   },
   {

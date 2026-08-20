@@ -53,6 +53,10 @@ export class SupabaseRepository implements FinanceRepository {
   private userId: string | null = null
 
   async load(): Promise<FinanceData> {
+    return withTokenRetry(() => this.read())
+  }
+
+  private async read(): Promise<FinanceData> {
     const client = requireClient()
     this.userId = await requireUser()
 
@@ -115,7 +119,9 @@ export class SupabaseRepository implements FinanceRepository {
     const baseline = this.previous
     this.previous = data
 
-    const write = this.queue.then(() => this.write(baseline, data))
+    const write = this.queue.then(() =>
+      withTokenRetry(() => this.write(baseline, data)),
+    )
 
     this.queue = write.catch(() => {
       // Re-sync on the next load rather than leaving a wrong baseline.
@@ -309,6 +315,59 @@ function withMonthKey<T extends { month: string }>(plan: T): T & { id: string } 
 function requireClient() {
   if (!supabase) throw new Error('Supabase is not configured')
   return supabase
+}
+
+/* --- refused over the token, not over the account -------------------- */
+
+/** Everything the backend said, as one string to match against. */
+function described(cause: unknown): string {
+  const error = cause as { code?: unknown; message?: unknown } | null
+  return [error?.code, error?.message].filter((part) => typeof part === 'string').join(' ')
+}
+
+/**
+ * The token is stamped ahead of the server's clock.
+ *
+ * Refreshing makes this worse, not better: a new token is stamped further
+ * ahead still. The only thing that helps is waiting for the clocks to meet.
+ */
+const isClockSkew = (cause: unknown) => /PGRST303|issued at future/i.test(described(cause))
+
+/**
+ * The token has run out. Whether it had is not something this side can know —
+ * the expiry it holds is arithmetic on the browser's own clock, and a browser
+ * whose clock is behind believes a dead token is still good. The server's
+ * refusal is the only authority, so that is what triggers the refresh.
+ */
+const isTokenExpired = (cause: unknown) =>
+  /PGRST301|jwt expired|JWSError|invalid claim/i.test(described(cause))
+
+const CLOCK_SKEW_WAIT_MS = 1500
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * One attempt, and a second one when the first was refused over the token.
+ *
+ * Neither refusal is somebody being signed out. Before this, both surfaced as
+ * "Sessiya bitib. Yenidən daxil olun." on a session nobody had ended — and
+ * signing in again appeared to fix it only because it happened to mint a token
+ * while the clocks agreed.
+ */
+async function withTokenRetry<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run()
+  } catch (cause) {
+    if (isClockSkew(cause)) {
+      await pause(CLOCK_SKEW_WAIT_MS)
+      return run()
+    }
+    if (isTokenExpired(cause)) {
+      await supabase?.auth.refreshSession()
+      return run()
+    }
+    throw cause
+  }
 }
 
 /**

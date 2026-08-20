@@ -56,20 +56,47 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
   const nothing =
     report.attention.length === 0 && report.good.length === 0 && report.review.length === 0
 
+  /*
+   * A panel with a sentence where its figure goes is not a panel. Each of
+   * these used to stand on the screen holding nothing but the reason it could
+   * not be filled in — and on a new account that was most of the page. They
+   * stay away until they have something to show, and the reason joins the list
+   * at the bottom that exists to hold exactly these.
+   */
+  const blocked: [string, string][] = []
+  if (split.total <= 0) {
+    blocked.push(['needs-wants', 'Bu ay üçün xərc qeydə alınmayıb'])
+  }
+  if (!framework) {
+    blocked.push([
+      'framework-50-30-20',
+      split.total <= 0
+        ? 'Xərc qeyd edildikcə paylar hesablanacaq'
+        : hasCoverage(split)
+          ? 'Bu ay gəlir qeyd edilməyib'
+          : 'Təsnifat tamamlanandan sonra çıxır',
+    ])
+  }
+  if (!fund) {
+    blocked.push(['emergency-fund', 'Median üçün ən azı 3 ayın təsnif edilmiş xərci lazımdır'])
+  }
+
   /* Grouped by method, because two rules can rest on one of them: with no plan
      at all, "Plan və faktiki fərqi" was listed twice, once per rule, and a list
      that names the same thing twice reads as a bug in the list rather than as
      two facts. */
-  const unavailable = [...new Set(report.unavailable.map((entry) => entry.method))].map(
+  const reasons: [string, string][] = [
+    ...report.unavailable.map((entry) => [entry.method, entry.reason] as [string, string]),
+    ...blocked,
+  ]
+  const unavailable = [...new Set(reasons.map(([method]) => method))].map(
     (method) =>
       [
         method,
         METHODS[method]?.name ?? '',
         [
           ...new Set(
-            report.unavailable
-              .filter((entry) => entry.method === method)
-              .map((entry) => entry.reason),
+            reasons.filter(([other]) => other === method).map(([, reason]) => reason),
           ),
         ].join(' · '),
       ] as const,
@@ -98,6 +125,8 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
         {/* --------------------------------------------------------- *
             Budget health — figures, not a score
          * --------------------------------------------------------- */}
+        {/* Five figures that are all zero say nothing five times over. */}
+        {(health.income > 0 || health.expenses > 0) && (
         <Panel
           title="Büdcə vəziyyəti"
           span={12}
@@ -149,6 +178,7 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
             </div>
           )}
         </Panel>
+        )}
 
         {/* With nothing to report this used to be four panels in a row that
             all said nothing to report: one saying so, and one per bucket saying
@@ -187,6 +217,11 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
         {/* --------------------------------------------------------- *
             Needs vs wants, and the frameworks that read them
          * --------------------------------------------------------- */}
+        {/* Kept when there is spending, even if it is not classified yet: what
+            it says then is which categories to classify, which is the one
+            actionable thing on this screen. With no spending at all there is
+            nothing to say and nothing to do, so it goes. */}
+        {split.total > 0 && (
         <Panel
           title="Ehtiyac və istək"
           span={4}
@@ -240,20 +275,18 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
               </p>
             </>
           ) : (
-            <Missing
-              total={split.total}
-              coverage={split.coverage}
-              missing={split.missing}
-            />
+            <Missing coverage={split.coverage} missing={split.missing} />
           )}
         </Panel>
+        )}
 
+        {framework && (
         <Panel
           title="50/30/20 çərçivəsi"
           span={4}
           note={<span className="panel-note">istinad — qayda deyil</span>}
         >
-          {framework ? (
+          {(
             <>
               <FrameworkRow
                 label="Zəruri (ehtiyac + borc)"
@@ -281,23 +314,11 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
                 Borc ödənişləri «zəruri» tərəfdə sayılır.
               </p>
             </>
-          ) : (
-            <Missing
-              total={split.total}
-              coverage={split.coverage}
-              missing={split.missing}
-              full={false}
-              extra={
-                split.total <= 0
-                  ? 'Xərc qeyd edildikcə paylar hesablanacaq.'
-                  : hasCoverage(split)
-                    ? 'Bu ay gəlir qeyd edilməyib.'
-                    : 'Paylar yuxarıdakı təsnifat tamamlanandan sonra çıxır.'
-              }
-            />
           )}
         </Panel>
+        )}
 
+        {fund && (
         <Panel
           title="Təcili ehtiyat fondu"
           span={4}
@@ -307,7 +328,7 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
             </span>
           }
         >
-          {fund ? (
+          {(
             <>
               <p className="micro">Zəruri aylıq xərc (median)</p>
               <p className="fund-value num">{formatAZN(fund.essentialMonthly)}</p>
@@ -379,16 +400,9 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
                   : 'Yığım qablarınıza qoyduğunuz məbləğlər burada irəliləyiş kimi görünəcək.'}
               </p>
             </>
-          ) : (
-            <Missing
-              total={split.total}
-              coverage={split.coverage}
-              missing={split.missing}
-              full={false}
-              extra="Median üçün ən azı 3 ayın təsnif edilmiş xərci lazımdır."
-            />
           )}
         </Panel>
+        )}
 
         {/* --------------------------------------------------------- *
             What could not be said, and why
@@ -499,31 +513,17 @@ function Bucket({
  * step, which is the difference between a blocked screen and an instruction.
  */
 function Missing({
-  total,
   coverage,
   missing,
-  extra,
-  full = true,
 }: {
-  total: number
   coverage: number
   missing: string[]
-  extra?: string
-  /* True for the first panel on the screen that has to say this, false for the
-     ones under it. Three panels can be waiting on one unfinished
-     classification, and three copies of the same paragraph and the same list
-     of category names down one screen is not three times as useful as one. The
-     panels below say only what is theirs to say. */
-  full?: boolean
 }) {
-  if (total <= 0) {
-    return <p className="advice-empty">{extra ?? 'Bu ay üçün xərc qeydə alınmayıb.'}</p>
-  }
 
   /* Only when coverage is what is actually missing. Telling somebody who has
      classified everything that they need to classify 90% of it sends them to
      do work that will not help — the real reason is in `extra`. */
-  const short = full && coverage < CLASSIFICATION_COVERAGE_MIN
+  const short = coverage < CLASSIFICATION_COVERAGE_MIN
 
   return (
     <div className="missing">
@@ -545,7 +545,6 @@ function Missing({
           </p>
         </>
       )}
-      {extra && <p className="missing-list">{extra}</p>}
     </div>
   )
 }

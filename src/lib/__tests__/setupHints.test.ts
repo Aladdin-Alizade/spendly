@@ -18,6 +18,18 @@ describe('setupHint', () => {
 
   it('says to sign in again when the session has gone', () => {
     expect(setupHint('Hesaba daxil olunmayıb')).toMatch(/Yenidən daxil olun/)
+    expect(setupHint('Invalid Refresh Token: Already Used')).toMatch(/Yenidən daxil olun/)
+  })
+
+  it('does not call a clock disagreement an ended session', () => {
+    // PGRST303 is the server saying the token is stamped ahead of its own
+    // clock. Nobody logged out, and signing in again mints a token stamped
+    // further ahead still — so the old advice was not just unhelpful, it was
+    // the one thing that could not work.
+    const hint = setupHint('PGRST303: JWT issued at future')
+    expect(hint).toMatch(/saat/)
+    expect(hint).not.toMatch(/Yenidən daxil olun/)
+    expect(setupHint('JWT issued at future')).toBe(hint)
   })
 
   it('asks for a re-run when a column is missing, not a first-time setup', () => {

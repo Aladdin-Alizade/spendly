@@ -164,7 +164,12 @@ export function Dashboard({
       <div className="grid">
         {/* ---------------------------------------------------------- *
             Where I stand
+
+            The balance is cumulative, so a quiet month still has one worth
+            showing. An account with no records at all does not: it would be a
+            zero over a flat line, which is a card that reports nothing.
          * ---------------------------------------------------------- */}
+        {(hasActivity || hasComparison || view.total !== 0) && (
         <Panel
           title="Balans"
           span={4}
@@ -206,6 +211,7 @@ export function Dashboard({
             </div>
           )}
         </Panel>
+        )}
 
         {/* ---------------------------------------------------------- *
             Planda qalan məbləğ
@@ -234,17 +240,25 @@ export function Dashboard({
             </div>
           </Panel>
         ) : (
-          <Panel title="Büdcə" span={4}>
-            <EmptyState
-              title="Bu dövr üçün plan yoxdur"
-              body="Xərcləri planla müqayisə etmək üçün Büdcə səhifəsində planlaşdırılan məbləğləri təyin edin."
-            />
-          </Panel>
+          /* Worth asking for a plan once there is spending to hold it against;
+             on an empty month it is one more card saying no. */
+          hasActivity && (
+            <Panel title="Büdcə" span={4}>
+              <EmptyState
+                title="Bu dövr üçün plan yoxdur"
+                body="Xərcləri planla müqayisə etmək üçün Büdcə səhifəsində planlaşdırılan məbləğləri təyin edin."
+              />
+            </Panel>
+          )
         )}
 
         {/* ---------------------------------------------------------- *
             How money came and went
+
+            Two bars of nothing and a remainder of zero, when nothing came and
+            nothing went.
          * ---------------------------------------------------------- */}
+        {(summary.income > 0 || summary.expenses > 0) && (
         <Panel title="Pul dövriyyəsi" span={4}>
           <CashflowRow
             label="Daxil olan"
@@ -305,6 +319,7 @@ export function Dashboard({
             </p>
           )}
         </Panel>
+        )}
 
         {!hasActivity && (
           <section className="card col-12">
