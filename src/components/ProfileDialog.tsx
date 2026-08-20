@@ -185,7 +185,8 @@ function syncLabel(sync: SyncState): string {
     case 'offline':
       return 'Oflayn — serverə çıxış yoxdur'
     case 'failed':
-      return sync.message?.trim() || 'Server dəyişikliyi qəbul etmədi'
+      // The banner above already says the server refused it, in those words.
+      return sync.message?.trim() || 'Son dəyişiklik göndərilmədi'
   }
 }
 

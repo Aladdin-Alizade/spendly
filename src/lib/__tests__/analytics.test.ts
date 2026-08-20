@@ -435,7 +435,7 @@ describe('insights', () => {
     })
     const change = insights(data, month).find((fact) => fact.id === 'spend-change')!
     expect(change.text).toContain('50%')
-    expect(change.text).toContain('çoxdur')
+    expect(change.text).toContain('artıb')
     expect(change.tone).toBe('attention')
   })
 
@@ -466,7 +466,9 @@ describe('insights', () => {
       ],
     })
     const top = insights(data, month).find((fact) => fact.id === 'top-category')!
-    expect(top.text).toContain('əvvəlki dövrdə')
+    // The panel's own note says which period "before" is, so the line only has
+    // to name the category that used to lead.
+    expect(top.text).toContain('əvvəl')
     expect(top.text).toContain('Ərzaq')
   })
 

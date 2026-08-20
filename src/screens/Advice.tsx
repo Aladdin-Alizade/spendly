@@ -56,6 +56,25 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
   const nothing =
     report.attention.length === 0 && report.good.length === 0 && report.review.length === 0
 
+  /* Grouped by method, because two rules can rest on one of them: with no plan
+     at all, "Plan və faktiki fərqi" was listed twice, once per rule, and a list
+     that names the same thing twice reads as a bug in the list rather than as
+     two facts. */
+  const unavailable = [...new Set(report.unavailable.map((entry) => entry.method))].map(
+    (method) =>
+      [
+        method,
+        METHODS[method]?.name ?? '',
+        [
+          ...new Set(
+            report.unavailable
+              .filter((entry) => entry.method === method)
+              .map((entry) => entry.reason),
+          ),
+        ].join(' · '),
+      ] as const,
+  )
+
   return (
     <>
       <div className="page-head">
@@ -131,33 +150,39 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
           )}
         </Panel>
 
-        {nothing && (
+        {/* With nothing to report this used to be four panels in a row that
+            all said nothing to report: one saying so, and one per bucket saying
+            so again in its own words. One says it now, and the empty buckets
+            stay away until there is something to put in them. */}
+        {nothing ? (
           <Panel title="Müşahidə yoxdur" span={12}>
             <p className="advice-empty">
-              Bu ay üçün rəqəmlərin təsdiqlədiyi müşahidə yoxdur. Əməliyyat və plan
-              əlavə etdikcə burada müşahidələr görünəcək.
+              Bir neçə əməliyyat və bir plan kifayətdir — rəqəmlər yığıldıqca bu
+              səhifə doldurulacaq.
             </p>
           </Panel>
+        ) : (
+          <>
+            <Bucket
+              title="Diqqət tələb edir"
+              priority="attention"
+              items={report.attention}
+              empty="Diqqət tələb edən hal aşkarlanmadı."
+            />
+            <Bucket
+              title="Yaxşı gedir"
+              priority="good"
+              items={report.good}
+              empty="Bu ay üçün müsbət müşahidə yoxdur."
+            />
+            <Bucket
+              title="Nəzərdən keçirməyə dəyər"
+              priority="review"
+              items={report.review}
+              empty="Nəzərdən keçirilməli hal yoxdur."
+            />
+          </>
         )}
-
-        <Bucket
-          title="Diqqət tələb edir"
-          priority="attention"
-          items={report.attention}
-          empty="Diqqət tələb edən hal aşkarlanmadı."
-        />
-        <Bucket
-          title="Yaxşı gedir"
-          priority="good"
-          items={report.good}
-          empty="Bu ay üçün müsbət müşahidə yoxdur."
-        />
-        <Bucket
-          title="Nəzərdən keçirməyə dəyər"
-          priority="review"
-          items={report.review}
-          empty="Nəzərdən keçirilməli hal yoxdur."
-        />
 
         {/* --------------------------------------------------------- *
             Needs vs wants, and the frameworks that read them
@@ -249,9 +274,11 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
                 amount={framework.savings}
               />
               <FrameworkReading framework={framework} />
+              {/* That this is a reference and not a rule is the panel's own
+                  note, and the source is in Metodologiya. What is left is the
+                  part neither of them says. */}
               <p className="framework-note">
-                CFPB bunu bir neçə büdcə qaydasından biri kimi öyrədir — hamıya
-                uyğun gəlmir. Borc ödənişləri «zəruri» tərəfdə sayılır.
+                Borc ödənişləri «zəruri» tərəfdə sayılır.
               </p>
             </>
           ) : (
@@ -259,10 +286,13 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
               total={split.total}
               coverage={split.coverage}
               missing={split.missing}
+              full={false}
               extra={
-                split.total > 0 && hasCoverage(split)
-                  ? 'Bu ay gəlir qeyd edilməyib.'
-                  : undefined
+                split.total <= 0
+                  ? 'Xərc qeyd edildikcə paylar hesablanacaq.'
+                  : hasCoverage(split)
+                    ? 'Bu ay gəlir qeyd edilməyib.'
+                    : 'Paylar yuxarıdakı təsnifat tamamlanandan sonra çıxır.'
               }
             />
           )}
@@ -340,11 +370,13 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
                   )}
                 </p>
               )}
+              {/* The 3 / 6 / 12 chooser above already says the number is yours
+                  to pick, so the note keeps to what is not visible: where the
+                  progress figure comes from. */}
               <p className="framework-note">
-                CFPB vahid rəqəm vermir — məbləğ vəziyyətinizdən asılıdır.
                 {pace && pace.saved > 0
-                  ? ' İrəliləyiş yığım qablarınızın cəminə görə hesablanır; tətbiq bank hesablarınızı görmür.'
-                  : ' Yığım qablarınıza qoyduğunuz məbləğlər burada irəliləyiş kimi görünəcək.'}
+                  ? 'İrəliləyiş yığım qablarınızın cəminə görə hesablanır; tətbiq bank hesablarınızı görmür.'
+                  : 'Yığım qablarınıza qoyduğunuz məbləğlər burada irəliləyiş kimi görünəcək.'}
               </p>
             </>
           ) : (
@@ -352,7 +384,8 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
               total={split.total}
               coverage={split.coverage}
               missing={split.missing}
-              extra="Hesablama üçün ən azı 3 ayın təsnif edilmiş xərci lazımdır."
+              full={false}
+              extra="Median üçün ən azı 3 ayın təsnif edilmiş xərci lazımdır."
             />
           )}
         </Panel>
@@ -360,24 +393,24 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
         {/* --------------------------------------------------------- *
             What could not be said, and why
          * --------------------------------------------------------- */}
-        {report.unavailable.length > 0 && (
+        {unavailable.length > 0 && (
           <Panel
             title="Hələ hesablana bilməyənlər"
             span={6}
-            note={<span className="panel-note">{report.unavailable.length}</span>}
+            note={<span className="panel-note">{unavailable.length}</span>}
           >
             <ul className="reasons">
-              {report.unavailable.map((entry, index) => (
-                <li key={`${entry.method}-${index}`}>
-                  <span className="reasons-name">{METHODS[entry.method]?.name}</span>
-                  <span className="reasons-why">{entry.reason}</span>
+              {unavailable.map(([method, name, reason]) => (
+                <li key={method}>
+                  <span className="reasons-name">{name}</span>
+                  <span className="reasons-why">{reason}</span>
                 </li>
               ))}
             </ul>
           </Panel>
         )}
 
-        <Methodology asOf={asOf} span={report.unavailable.length > 0 ? 6 : 12} />
+        <Methodology asOf={asOf} span={unavailable.length > 0 ? 6 : 12} />
       </div>
     </>
   )
@@ -470,37 +503,45 @@ function Missing({
   coverage,
   missing,
   extra,
+  full = true,
 }: {
   total: number
   coverage: number
   missing: string[]
   extra?: string
+  /* True for the first panel on the screen that has to say this, false for the
+     ones under it. Three panels can be waiting on one unfinished
+     classification, and three copies of the same paragraph and the same list
+     of category names down one screen is not three times as useful as one. The
+     panels below say only what is theirs to say. */
+  full?: boolean
 }) {
   if (total <= 0) {
-    return <p className="advice-empty">Bu ay xərc qeyd edilməyib.</p>
+    return <p className="advice-empty">{extra ?? 'Bu ay üçün xərc qeydə alınmayıb.'}</p>
   }
 
   /* Only when coverage is what is actually missing. Telling somebody who has
      classified everything that they need to classify 90% of it sends them to
      do work that will not help — the real reason is in `extra`. */
-  const short = coverage < CLASSIFICATION_COVERAGE_MIN
+  const short = full && coverage < CLASSIFICATION_COVERAGE_MIN
 
   return (
     <div className="missing">
       {short && (
         <>
           <p className="missing-lead">
-            Xərcin {Math.round(coverage * 100)}%-i təsnif edilib. Bu hesablama üçün
-            ən azı {Math.round(CLASSIFICATION_COVERAGE_MIN * 100)}% lazımdır.
+            Xərclərin {Math.round(coverage * 100)}%-i təsnif edilib — hesablama
+            üçün ən azı {Math.round(CLASSIFICATION_COVERAGE_MIN * 100)}% lazımdır.
           </p>
           {missing.length > 0 && (
             <p className="missing-list">
-              Təsnif edilməyən: {missing.slice(0, 5).join(', ')}
+              Təsnif edilməyib: {missing.slice(0, 5).join(', ')}
               {missing.length > 5 && ` və daha ${missing.length - 5}`}
             </p>
           )}
           <p className="missing-how">
-            Büdcə → Kateqoriyalar bölməsində hər kateqoriyaya növ təyin edin.
+            Büdcə → Quraşdırma → Kateqoriyalar bölməsində hər birinin növünü
+            seçin.
           </p>
         </>
       )}

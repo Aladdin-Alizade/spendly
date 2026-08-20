@@ -89,13 +89,15 @@ export function SpendRing({
           y="43%"
           textAnchor="middle"
         >
-          SPENT
+          XƏRCLƏNƏN
         </text>
         <text className="ring-center-value num" x="50%" y="55%" textAnchor="middle">
           {formatAZN(spent)}
         </text>
         <text className="ring-center-note num" x="50%" y="65%" textAnchor="middle">
-          {over > 0 ? `${formatAZN(over)} over plan` : `of ${formatAZN(planned)}`}
+          {over > 0
+            ? `${formatAZN(over)} plandan artıq`
+            : `${formatAZN(planned)} plandan`}
         </text>
       </svg>
 

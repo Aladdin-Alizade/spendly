@@ -171,7 +171,7 @@ const signed = (ratio: number) => `${Math.round(ratio * 100)}%`
  */
 const overspent: Rule = ({ health, add, skip }) => {
   if (health.spendingRatio === null) {
-    skip({ method: 'spending-ratio', reason: 'Bu ay gəlir qeyd edilməyib' })
+    skip({ method: 'spending-ratio', reason: 'Nisbəti çıxarmaq üçün gəlir lazımdır' })
     return
   }
   if (health.remaining >= 0) return
@@ -486,7 +486,7 @@ const unexpected: Rule = ({ data, month, health, add, skip }) => {
 
 const recurringBurden: Rule = ({ data, month, health, add, skip }) => {
   if (health.income <= 0) {
-    skip({ method: 'recurring', reason: 'Bu ay gəlir qeyd edilməyib' })
+    skip({ method: 'recurring', reason: 'Öhdəliklərin payı üçün gəlir lazımdır' })
     return
   }
 

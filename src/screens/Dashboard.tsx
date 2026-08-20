@@ -344,8 +344,14 @@ export function Dashboard({
         {/* ---------------------------------------------------------- *
             What changed
          * ---------------------------------------------------------- */}
+        {/* The note carries the comparison for every line under it, so none of
+            them has to repeat which period it is measured against. */}
         {facts.length > 0 && (
-          <Panel title="Nə dəyişdi" span={4}>
+          <Panel
+            title="Nə dəyişdi"
+            span={4}
+            note={<span className="panel-note">{comparisonLabel(period)}</span>}
+          >
             <div className="insights">
               {facts.map((fact) => (
                 <p className={`insight insight-${fact.tone}`} key={fact.id}>
@@ -380,7 +386,7 @@ export function Dashboard({
             flush
             note={
               <span className="panel-note">
-                {formatAZN(summary.expenses)} of {formatAZN(summary.plannedExpenses)}
+                {formatAZN(summary.expenses)} / {formatAZN(summary.plannedExpenses)}
               </span>
             }
           >
@@ -771,7 +777,7 @@ function CompareRow({
  *  when there is no earlier data to compare against. */
 function Delta({ value, enabled }: { value: number; enabled: boolean }) {
   if (!enabled) return <span className="pill">Əvvəlki məlumat yoxdur</span>
-  if (value === 0) return <span className="pill">Unchanged</span>
+  if (value === 0) return <span className="pill">Dəyişməyib</span>
   return (
     <span className={`pill ${value > 0 ? 'pill-pos' : 'pill-neg'}`}>
       {value > 0 ? '↑' : '↓'} {formatAZN(Math.abs(value))}

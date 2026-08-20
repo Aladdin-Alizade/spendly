@@ -450,6 +450,10 @@ const MATERIAL_AMOUNT = 5
  *
  * Sentences are impersonal ("qalıb", not "saxladınız") so the app reports on
  * the money rather than addressing the person spending it.
+ *
+ * None of them names the period being compared against, either. Four lines of
+ * one panel each ending "əvvəlki dövrə nisbətən" is the same clause read four
+ * times; the panel says it once, above them.
  */
 export function insights(data: FinanceData, period: Period): Insight[] {
   const previous = previousPeriod(period)
@@ -483,8 +487,8 @@ export function insights(data: FinanceData, period: Period): Insight[] {
     if (Math.abs(ratio) >= MATERIAL_CHANGE) {
       result.push({
         id: 'spend-change',
-        text: `Ümumi xərclər əvvəlki dövrə nisbətən ${percent(Math.abs(ratio))} ${
-          ratio > 0 ? 'çoxdur' : 'azdır'
+        text: `Ümumi xərclər ${percent(Math.abs(ratio))} ${
+          ratio > 0 ? 'artıb' : 'azalıb'
         }.`,
         tone: ratio > 0 ? 'attention' : 'positive',
       })
@@ -497,8 +501,8 @@ export function insights(data: FinanceData, period: Period): Insight[] {
     if (Math.abs(delta) >= MATERIAL_AMOUNT) {
       result.push({
         id: 'income-change',
-        text: `Gəlir əvvəlki dövrə nisbətən ${money(Math.abs(delta))} ${
-          delta > 0 ? 'çoxdur' : 'azdır'
+        text: `Gəlir ${money(Math.abs(delta))} ${
+          delta > 0 ? 'artıb' : 'azalıb'
         }.`,
         tone: delta > 0 ? 'positive' : 'attention',
       })
@@ -514,7 +518,7 @@ export function insights(data: FinanceData, period: Period): Insight[] {
     result.push({
       id: 'top-category',
       text: changedLead
-        ? `Ən böyük xərc indi ${top.category} — ${money(top.actual)}; əvvəlki dövrdə ${priorTop.category} idi.`
+        ? `Ən böyük xərc indi ${top.category} — ${money(top.actual)}; əvvəl ${priorTop.category} idi.`
         : `Ən böyük xərc ${top.category} — ${money(top.actual)}, bütün xərclərin ${percent(top.share)}-i.`,
       tone: 'neutral',
     })
@@ -535,11 +539,9 @@ export function insights(data: FinanceData, period: Period): Insight[] {
     const ratio = row.changeRatio as number
     result.push({
       id: `mover-${row.category}`,
-      text: `${row.category} xərcləri əvvəlki dövrə nisbətən ${percent(
-        Math.abs(ratio),
-      )} ${ratio > 0 ? 'çoxdur' : 'azdır'} (${money(row.actual)} / ${money(
-        row.previous,
-      )}).`,
+      text: `${row.category} xərcləri ${percent(Math.abs(ratio))} ${
+        ratio > 0 ? 'artıb' : 'azalıb'
+      } (${money(row.actual)} / ${money(row.previous)}).`,
       tone: ratio > 0 ? 'attention' : 'positive',
     })
   }

@@ -230,14 +230,15 @@ export function TransactionDialog({
           {options.length === 0 && (
             <p className="field-note">
               {input.type === 'income' ? 'Gəlir' : 'Xərc'} kateqoriyası hələ
-              yoxdur. Büdcə səhifəsində <strong>Kateqoriyalar</strong> bölməsindən
-              əlavə edin.
+              yoxdur. Büdcə → Quraşdırma → <strong>Kateqoriyalar</strong>
+              bölməsindən əlavə edin.
             </p>
           )}
 
           <div className="field">
             <label className="field-label" htmlFor="tx-note">
-              Qeyd <span style={{ color: 'var(--text-faint)' }}>· seçimli</span>
+              Qeyd{' '}
+              <span style={{ color: 'var(--text-faint)' }}>· istəyə bağlı</span>
             </label>
             <input
               id="tx-note"
