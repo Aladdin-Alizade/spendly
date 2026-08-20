@@ -215,8 +215,12 @@ export function Dashboard({
 
         {/* ---------------------------------------------------------- *
             Planda qalan məbləğ
+
+            With no plan there is no ring and no remainder, and the card that
+            stood here in its place held only the sentence saying so. Büdcə is
+            a tab away and says the same thing where it can be acted on.
          * ---------------------------------------------------------- */}
-        {summary.plannedExpenses > 0 ? (
+        {summary.plannedExpenses > 0 && (
           <Panel
             title="Büdcə"
             span={4}
@@ -239,17 +243,6 @@ export function Dashboard({
               </span>
             </div>
           </Panel>
-        ) : (
-          /* Worth asking for a plan once there is spending to hold it against;
-             on an empty month it is one more card saying no. */
-          hasActivity && (
-            <Panel title="Büdcə" span={4}>
-              <EmptyState
-                title="Bu dövr üçün plan yoxdur"
-                body="Xərcləri planla müqayisə etmək üçün Büdcə səhifəsində planlaşdırılan məbləğləri təyin edin."
-              />
-            </Panel>
-          )
         )}
 
         {/* ---------------------------------------------------------- *

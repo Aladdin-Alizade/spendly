@@ -180,38 +180,31 @@ export function Advice({ data, month }: { data: FinanceData; month: MonthKey }) 
         </Panel>
         )}
 
-        {/* With nothing to report this used to be four panels in a row that
-            all said nothing to report: one saying so, and one per bucket saying
-            so again in its own words. One says it now, and the empty buckets
-            stay away until there is something to put in them. */}
-        {nothing ? (
+        {/* A bucket that found nothing is not a finding. All three used to
+            stand in a row whatever the month held, and an empty one filled its
+            card with a sentence saying it was empty — three ways of reporting
+            nothing, beside the one that had something. Each waits now until it
+            has something to list. */}
+        {report.attention.length > 0 && (
+          <Bucket title="Diqqət tələb edir" priority="attention" items={report.attention} />
+        )}
+        {report.good.length > 0 && (
+          <Bucket title="Yaxşı gedir" priority="good" items={report.good} />
+        )}
+        {report.review.length > 0 && (
+          <Bucket title="Nəzərdən keçirməyə dəyər" priority="review" items={report.review} />
+        )}
+
+        {/* That no rule fired is itself a result — but only where there were
+            figures to run them against. On an account holding nothing it is
+            one more card reporting nothing, and the list at the bottom already
+            names what is missing and why. */}
+        {nothing && (health.income > 0 || health.expenses > 0) && (
           <Panel title="Müşahidə yoxdur" span={12}>
             <p className="advice-empty">
-              Bir neçə əməliyyat və bir plan kifayətdir — rəqəmlər yığıldıqca bu
-              səhifə doldurulacaq.
+              Bu ayın rəqəmləri yoxlanıldı — qeyd etməyə dəyər bir hal çıxmadı.
             </p>
           </Panel>
-        ) : (
-          <>
-            <Bucket
-              title="Diqqət tələb edir"
-              priority="attention"
-              items={report.attention}
-              empty="Diqqət tələb edən hal aşkarlanmadı."
-            />
-            <Bucket
-              title="Yaxşı gedir"
-              priority="good"
-              items={report.good}
-              empty="Bu ay üçün müsbət müşahidə yoxdur."
-            />
-            <Bucket
-              title="Nəzərdən keçirməyə dəyər"
-              priority="review"
-              items={report.review}
-              empty="Nəzərdən keçirilməli hal yoxdur."
-            />
-          </>
         )}
 
         {/* --------------------------------------------------------- *
@@ -456,52 +449,42 @@ function Bucket({
   title,
   priority,
   items,
-  empty,
 }: {
   title: string
   priority: AdvicePriority
   items: Advice[]
-  empty: string
 }) {
   return (
-    <Panel
-      title={title}
-      span={4}
-      note={items.length > 0 ? <span className="panel-note">{items.length}</span> : undefined}
-    >
-      {items.length === 0 ? (
-        <p className="advice-empty">{empty}</p>
-      ) : (
-        <div className="advice-list">
-          {items.map((item) => (
-            <article className={`advice advice-${priority}`} key={item.id}>
-              <p className="advice-fact">{item.fact}</p>
+    <Panel title={title} span={4} note={<span className="panel-note">{items.length}</span>}>
+      <div className="advice-list">
+        {items.map((item) => (
+          <article className={`advice advice-${priority}`} key={item.id}>
+            <p className="advice-fact">{item.fact}</p>
 
-              {item.meter && (
-                <div className="advice-meter">
-                  <div className="bar-track">
+            {item.meter && (
+              <div className="advice-meter">
+                <div className="bar-track">
+                  <span
+                    className="bar-fill bar-fill-out"
+                    style={{ width: `${Math.min(Math.max(item.meter.value, 0), 1) * 100}%` }}
+                  />
+                  {item.meter.reference !== undefined && (
                     <span
-                      className="bar-fill bar-fill-out"
-                      style={{ width: `${Math.min(Math.max(item.meter.value, 0), 1) * 100}%` }}
+                      className="bar-mark"
+                      style={{ left: `${Math.min(item.meter.reference, 1) * 100}%` }}
                     />
-                    {item.meter.reference !== undefined && (
-                      <span
-                        className="bar-mark"
-                        style={{ left: `${Math.min(item.meter.reference, 1) * 100}%` }}
-                      />
-                    )}
-                  </div>
-                  <p className="advice-meter-label">{item.meter.label}</p>
+                  )}
                 </div>
-              )}
+                <p className="advice-meter-label">{item.meter.label}</p>
+              </div>
+            )}
 
-              {item.suggestion && <p className="advice-suggestion">{item.suggestion}</p>}
+            {item.suggestion && <p className="advice-suggestion">{item.suggestion}</p>}
 
-              <p className="advice-source">{METHODS[item.method]?.name}</p>
-            </article>
-          ))}
-        </div>
-      )}
+            <p className="advice-source">{METHODS[item.method]?.name}</p>
+          </article>
+        ))}
+      </div>
     </Panel>
   )
 }
