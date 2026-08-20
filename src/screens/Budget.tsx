@@ -365,7 +365,7 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
       {editingIncome && (
         <PlannedAmountsDialog
           title="Planlaşdırılan gəlir"
-          emptyText="Hələ gəlir kateqoriyası yoxdur. Aşağıdakı Kateqoriyalar bölməsindən əlavə edin."
+          emptyText="Hələ gəlir kateqoriyası yoxdur. Quraşdırma → Kateqoriyalar bölməsindən əlavə edin."
           idPrefix="ip"
           rows={incomeRows.map((row) => ({
             name: row.category,
