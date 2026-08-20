@@ -190,7 +190,7 @@ export function renameCategory(
   if (!target || trimmed === '' || target.name === trimmed) return data
 
   return {
-    ...applyRename(data, target.name, trimmed, target.type),
+    ...moveCategoryReferences(data, target.name, trimmed, target.type),
     categories: data.categories.map((category) =>
       category.id === id ? { ...category, name: trimmed } : category,
     ),
@@ -213,7 +213,7 @@ export function removeCategory(
   if (!target) return data
 
   const moved = reassignTo
-    ? applyRename(data, target.name, reassignTo, target.type)
+    ? moveCategoryReferences(data, target.name, reassignTo, target.type)
     : data
 
   if (!reassignTo && isCategoryInUse(categoryUsage(data, target.name))) {
@@ -233,8 +233,12 @@ export function removeCategory(
  * transactions and by budget lines, an income category by transactions and by
  * the planned-income figures. Missing one of these is how a rename quietly
  * drops a planned amount, so all of them move together.
+ *
+ * Exported because a rename is not the only thing that has to do this: merging
+ * two devices can find one category under two ids, and the one that loses has
+ * to hand its rows over rather than leave them naming something that is gone.
  */
-function applyRename(
+export function moveCategoryReferences(
   data: FinanceData,
   from: string,
   to: string,

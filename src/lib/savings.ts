@@ -210,8 +210,38 @@ export function addPot(data: FinanceData, pot: SavingsPot): FinanceData {
   }
 }
 
-/** Rename the pot and every entry that names it, in one change. Touches no
+/** Rename the pot and everything that names it, in one change. Touches no
  *  amount, so no balance moves. */
+/**
+ * Carry every reference across.
+ *
+ * A pot is named in two places, not one: by the entries that moved money into
+ * and out of it, and by the month's savings plan, which is keyed by pot name
+ * the way the income plan is keyed by category name. Moving only the entries
+ * is how renaming a pot silently orphaned the figure somebody had planned for
+ * it — the money stayed, the plan it was measured against did not.
+ *
+ * A move onto a pot that is already planned for adds the two together, the
+ * same way the income side does.
+ */
+export function movePotReferences(
+  data: FinanceData,
+  from: string,
+  to: string,
+): FinanceData {
+  return {
+    ...data,
+    savingsEntries: data.savingsEntries.map((entry) =>
+      entry.pot === from ? { ...entry, pot: to } : entry,
+    ),
+    savingsPlans: data.savingsPlans.map((plan) => {
+      if (!(from in plan.amounts)) return plan
+      const { [from]: moved, ...rest } = plan.amounts
+      return { ...plan, amounts: { ...rest, [to]: (rest[to] ?? 0) + moved } }
+    }),
+  }
+}
+
 export function renamePot(
   data: FinanceData,
   id: string,
@@ -222,12 +252,9 @@ export function renamePot(
   if (!target || trimmed === '' || target.name === trimmed) return data
 
   return {
-    ...data,
+    ...movePotReferences(data, target.name, trimmed),
     savingsPots: data.savingsPots.map((pot) =>
       pot.id === id ? { ...pot, name: trimmed } : pot,
-    ),
-    savingsEntries: data.savingsEntries.map((entry) =>
-      entry.pot === target.name ? { ...entry, pot: trimmed } : entry,
     ),
   }
 }
@@ -266,14 +293,11 @@ export function removePot(
   const used = data.savingsEntries.some((entry) => entry.pot === target.name)
   if (used && !reassignTo) return data
 
+  const moved = reassignTo ? movePotReferences(data, target.name, reassignTo) : data
+
   return {
-    ...data,
-    savingsPots: data.savingsPots.filter((pot) => pot.id !== id),
-    savingsEntries: reassignTo
-      ? data.savingsEntries.map((entry) =>
-          entry.pot === target.name ? { ...entry, pot: reassignTo } : entry,
-        )
-      : data.savingsEntries,
+    ...moved,
+    savingsPots: moved.savingsPots.filter((pot) => pot.id !== id),
   }
 }
 

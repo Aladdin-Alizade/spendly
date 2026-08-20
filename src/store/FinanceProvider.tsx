@@ -123,7 +123,11 @@ export function FinanceProvider({
   const [data, setData] = useState<FinanceData>(emptyData)
   const [status, setStatus] = useState<LoadStatus>('loading')
   const [error, setError] = useState<string | null>(null)
-  const [sync, setSync] = useState<SyncState>({ status: 'synced', message: null })
+  const [sync, setSync] = useState<SyncState>({
+    status: 'synced',
+    message: null,
+    stored: true,
+  })
   const [syncMessageDismissed, setSyncMessageDismissed] = useState(false)
   const [attempt, setAttempt] = useState(0)
 
@@ -139,9 +143,14 @@ export function FinanceProvider({
         setData(loaded)
         setStatus('ready')
       })
-      .catch((cause) => {
+      .catch((cause: unknown) => {
         if (cancelled) return
-        setError(cause instanceof Error ? cause.message : 'Məlumatlarınızı yükləmək mümkün olmadı')
+        // Not `cause.message`: PostgREST puts the actionable part in `hint` and
+        // identifies the failure with `code`, and reading only the message
+        // threw away exactly what `setupHint` matches on — so a project with
+        // no tables yet was told "relation does not exist" instead of which
+        // file to run.
+        setError(describeError(cause) || 'Məlumatlarınızı yükləmək mümkün olmadı')
         setStatus('error')
       })
 
@@ -201,7 +210,7 @@ export function FinanceProvider({
       // local-only path, where a failure to write this browser's own storage
       // is the whole story.
       repo.current.save(next).catch((cause: unknown) => {
-        setSync({ status: 'failed', message: describeError(cause) })
+        setSync({ status: 'failed', message: describeError(cause), stored: false })
       })
       return next
     })

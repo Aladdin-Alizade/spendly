@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { changedRows } from '../supabaseRepository'
+import {
+  DELETE_KEYS,
+  PAGE_ROWS,
+  batched,
+  changedRows,
+  selectAll,
+} from '../supabaseRepository'
 import type { Transaction } from '../types'
 
 /**
@@ -91,5 +97,109 @@ describe('change detection', () => {
     const diff = changedRows([tx('a'), tx('b')], [tx('b'), tx('a')], row)
     expect(diff.upserts).toEqual([])
     expect(diff.removed).toEqual([])
+  })
+})
+
+
+/**
+ * Reading a table that is longer than one answer.
+ *
+ * PostgREST caps a response at `db-max-rows` — Supabase ships that set to 1000
+ * — and says nothing about having done it. One unpaged request therefore
+ * looked like the whole table while being its first thousand rows, and the
+ * merge wrote that back over the browser's own copy: an account with more
+ * history than that watched a shifting subset of it appear and disappear.
+ */
+describe('reading every row', () => {
+  /** A server that answers at most `cap` rows however many are asked for. */
+  function server(total: number, cap = PAGE_ROWS) {
+    const rows = Array.from({ length: total }, (_, index) => ({ id: `r${index}` }))
+    const ranges: [number, number][] = []
+
+    const client = {
+      from: () => ({
+        select: (_columns: string, options?: { count?: 'exact' }) => ({
+          order: () => ({
+            range: (from: number, to: number) => {
+              ranges.push([from, to])
+              return Promise.resolve({
+                data: rows.slice(from, Math.min(to + 1, from + cap)),
+                error: null,
+                count: options?.count === 'exact' ? total : null,
+              })
+            },
+          }),
+        }),
+      }),
+    }
+
+    return { client, ranges }
+  }
+
+  it('reads a table that fits in one answer without asking twice', async () => {
+    const { client, ranges } = server(3)
+    const rows = await selectAll(client as never, 'transactions', 'id')
+
+    expect(rows).toHaveLength(3)
+    expect(ranges).toHaveLength(1)
+  })
+
+  it('stops on the row the server counted, not on a short page', async () => {
+    // Exactly one page. The count is what says there is nothing after it, so
+    // no second request goes out to find that out.
+    const { client, ranges } = server(PAGE_ROWS)
+    expect(await selectAll(client as never, 'transactions', 'id')).toHaveLength(PAGE_ROWS)
+    expect(ranges).toHaveLength(1)
+  })
+
+  it('keeps going past the cap until it has the whole table', async () => {
+    const { client, ranges } = server(2500)
+    const rows = await selectAll(client as never, 'transactions', 'id')
+
+    expect(rows).toHaveLength(2500)
+    expect(rows[2499]).toEqual({ id: 'r2499' })
+    expect(ranges[0][0]).toBe(0)
+    expect(ranges[1][0]).toBe(PAGE_ROWS)
+  })
+
+  it('still finishes when the server caps below what was asked for', async () => {
+    // A project with a smaller `db-max-rows` answers short every time, so a
+    // short page cannot be read as the end of the table.
+    const { client } = server(1200, 500)
+    expect(await selectAll(client as never, 'transactions', 'id')).toHaveLength(1200)
+  })
+
+  it('reads an empty table as nothing rather than looping', async () => {
+    const { client, ranges } = server(0)
+    expect(await selectAll(client as never, 'transactions', 'id')).toEqual([])
+    expect(ranges).toHaveLength(1)
+  })
+})
+
+/**
+ * The keys of a delete travel in the URL, which is the short one: "delete
+ * everything" on a real history built a request line long enough for the
+ * gateway to refuse it outright.
+ */
+describe('batching what goes out', () => {
+  it('splits a list into whole batches with a remainder', () => {
+    expect(batched([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]])
+  })
+
+  it('leaves a list that already fits alone', () => {
+    expect(batched([1, 2], 5)).toEqual([[1, 2]])
+  })
+
+  it('sends nothing for nothing', () => {
+    expect(batched([], 5)).toEqual([])
+  })
+
+  it('keeps a full account clear-out to short requests', () => {
+    const ids = Array.from({ length: 500 }, (_, index) => `id-${index}`)
+    const batches = batched(ids, DELETE_KEYS)
+
+    expect(batches).toHaveLength(5)
+    expect(batches.every((batch) => batch.length <= DELETE_KEYS)).toBe(true)
+    expect(batches.flat()).toEqual(ids)
   })
 })

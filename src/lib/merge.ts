@@ -16,23 +16,21 @@
  * not seen yet, which is why it is stored rather than recomputed.
  */
 
-import type { CategoryDef, FinanceData, SavingsPot } from './types'
+import { moveCategoryReferences } from './categories'
+import { movePotReferences } from './savings'
+import type { CategoryDef, FinanceData, SavingsPot, TransactionType } from './types'
 
 export function mergeFinanceData(
   base: FinanceData,
   local: FinanceData,
   remote: FinanceData,
 ): FinanceData {
-  return {
+  const merged: FinanceData = {
     transactions: mergeRows(base.transactions, local.transactions, remote.transactions, (t) => t.id),
     budgetLines: mergeRows(base.budgetLines, local.budgetLines, remote.budgetLines, (l) => l.id),
     incomePlans: mergeRows(base.incomePlans, local.incomePlans, remote.incomePlans, (p) => p.month),
-    categories: dedupeCategories(
-      mergeRows(base.categories, local.categories, remote.categories, (c) => c.id),
-    ),
-    savingsPots: dedupePots(
-      mergeRows(base.savingsPots, local.savingsPots, remote.savingsPots, (p) => p.id),
-    ),
+    categories: mergeRows(base.categories, local.categories, remote.categories, (c) => c.id),
+    savingsPots: mergeRows(base.savingsPots, local.savingsPots, remote.savingsPots, (p) => p.id),
     savingsEntries: mergeRows(
       base.savingsEntries,
       local.savingsEntries,
@@ -46,18 +44,31 @@ export function mergeFinanceData(
       (p) => p.month,
     ),
   }
+
+  return dedupePots(dedupeCategories(merged))
 }
 
 /** Two ids, one pot — the same collision categories have, for the same reason:
  *  a pot is unique by name on the server, and every entry names its pot. */
-function dedupePots(pots: SavingsPot[]): SavingsPot[] {
-  const seen = new Set<string>()
-  return pots.filter((pot) => {
+function dedupePots(data: FinanceData): FinanceData {
+  const seen = new Map<string, SavingsPot>()
+  const kept: SavingsPot[] = []
+  const moves: { from: string; to: string }[] = []
+
+  for (const pot of data.savingsPots) {
     const key = pot.name.trim().toLowerCase()
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+    const survivor = seen.get(key)
+    if (!survivor) {
+      seen.set(key, pot)
+      kept.push(pot)
+    } else if (survivor.name !== pot.name) {
+      moves.push({ from: pot.name, to: survivor.name })
+    }
+  }
+
+  let next: FinanceData = { ...data, savingsPots: kept }
+  for (const move of moves) next = movePotReferences(next, move.from, move.to)
+  return next
 }
 
 /**
@@ -69,20 +80,36 @@ function dedupePots(pots: SavingsPot[]): SavingsPot[] {
  * server rejects the pair outright — a category is unique per (user, type,
  * name) there, which is the rule that makes a rename possible at all.
  *
- * So a duplicate by name is resolved in favour of the server's row. Nothing is
- * lost by dropping the local one: every transaction, budget line and planned
- * figure refers to a category by name, never by id.
+ * So a duplicate by name is resolved in favour of the server's row — and every
+ * row that named the one being dropped is moved onto the survivor. Dropping
+ * the definition alone was not enough: the app matches a category by name and
+ * the two spellings differ only in case, so the transactions left behind named
+ * a category the picker no longer offered, and editing one of them asked for a
+ * category that could not be chosen.
  */
-function dedupeCategories(categories: CategoryDef[]): CategoryDef[] {
-  const seen = new Set<string>()
+function dedupeCategories(data: FinanceData): FinanceData {
+  const seen = new Map<string, CategoryDef>()
+  const kept: CategoryDef[] = []
+  const moves: { from: string; to: string; type: TransactionType }[] = []
+
   // Merged order is the server's first, so the surviving id is the server's —
   // the one every other device already agrees on.
-  return categories.filter((category) => {
+  for (const category of data.categories) {
     const key = `${category.type}\u0000${category.name.trim().toLowerCase()}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+    const survivor = seen.get(key)
+    if (!survivor) {
+      seen.set(key, category)
+      kept.push(category)
+    } else if (survivor.name !== category.name) {
+      moves.push({ from: category.name, to: survivor.name, type: category.type })
+    }
+  }
+
+  let next: FinanceData = { ...data, categories: kept }
+  for (const move of moves) {
+    next = moveCategoryReferences(next, move.from, move.to, move.type)
+  }
+  return next
 }
 
 /**

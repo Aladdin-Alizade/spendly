@@ -212,6 +212,11 @@ function AccountButton({ onOpen }: { onOpen: () => void }) {
  * go out on its own — so it gets a quiet line and no alarm. A rejection from
  * the server is a failure, needs a person, and says which step fixes it.
  * Everything in order says nothing at all.
+ *
+ * Across all three runs a fourth thing: whether the browser managed to keep
+ * its own copy. Every one of these lines used to end by promising it had,
+ * which on a full quota was the one sentence in the app that was not true —
+ * and it was being said at exactly the moment it mattered most.
  */
 function SyncBanner({
   sync,
@@ -222,16 +227,36 @@ function SyncBanner({
   onRetry: () => void
   onDismiss: () => void
 }) {
-  if (sync.status === 'synced') return null
-
-  if (sync.status === 'pending' || sync.status === 'offline') {
+  if (sync.status === 'synced') {
+    // Everything is on the server. The only thing left worth saying is that
+    // this browser could not keep its own copy, which matters because the next
+    // edit made offline has nowhere to go.
+    if (sync.stored) return null
     return (
       <div className="sync-banner" role="status">
         <div className="sync-banner-inner">
           <span className="sync-banner-text">
-            {sync.status === 'pending'
-              ? 'Dəyişikliklər bu brauzerdə saxlanılıb, sinxronizasiya gözləyir.'
-              : 'Oflayn rejim — məlumatlar bu brauzerdən oxunur.'}
+            Dəyişiklik serverə göndərildi, amma bu brauzerdə nüsxə saxlanıla
+            bilmədi — yaddaşda yer açın.
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  if (sync.status === 'pending' || sync.status === 'offline') {
+    const queued =
+      sync.status === 'pending'
+        ? 'Dəyişikliklər bu brauzerdə saxlanılıb, sinxronizasiya gözləyir.'
+        : 'Oflayn rejim — məlumatlar bu brauzerdən oxunur.'
+
+    return (
+      <div className="sync-banner" role="status">
+        <div className="sync-banner-inner">
+          <span className="sync-banner-text">
+            {sync.stored
+              ? queued
+              : 'Dəyişiklik nə bu brauzerdə saxlanıla bildi, nə də göndərildi — yaddaşda yer açın.'}
           </span>
           <button type="button" className="button button-quiet" onClick={onRetry}>
             İndi göndər
@@ -252,10 +277,17 @@ function SyncBanner({
   return (
     <div className="save-banner" role="alert">
       <div className="save-banner-inner">
+        {/* Which failure this is decides the first sentence. Local-only mode
+            has no server to refuse anything, so leading with one there would
+            name a thing that is not in the picture. */}
         <span className="save-banner-text">
-          <strong>Server dəyişikliyi qəbul etmədi.</strong>{' '}
+          <strong>
+            {sync.stored
+              ? 'Server dəyişikliyi qəbul etmədi.'
+              : 'Dəyişiklik saxlanıla bilmədi.'}
+          </strong>{' '}
           {guidance && <>{guidance} </>}
-          Dəyişiklik bu brauzerdə saxlanılıb.
+          {sync.stored && 'Dəyişiklik bu brauzerdə saxlanılıb.'}
         </span>
         {/* The raw error, when a hint stood in for it. */}
         {hint && message.trim() !== '' && (

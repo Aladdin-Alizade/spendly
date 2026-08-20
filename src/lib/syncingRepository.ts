@@ -33,6 +33,17 @@ export interface SyncState {
   status: SyncStatus
   /** Set for `failed`, where the reason is actionable. */
   message: string | null
+  /**
+   * False when the browser could not keep its own copy of the last change —
+   * a full quota, storage a private window will not hand over.
+   *
+   * Kept apart from `status` because it answers a different question. The
+   * status says whether the server has the change; this says whether closing
+   * the tab would lose it. Both can be true at once, and the promise the app
+   * makes — that an edit is saved before anything is asked of the network —
+   * is the one this reports on.
+   */
+  stored: boolean
 }
 
 /**
@@ -73,11 +84,21 @@ export function readSnapshot(key: string): FinanceData | null {
   }
 }
 
-export function writeSnapshot(key: string, data: FinanceData): void {
+/**
+ * True when the snapshot is in this browser's storage.
+ *
+ * A full quota is not a reason to throw: the edit is already on screen and the
+ * caller has a server to try. It is a reason to say so, which is what the
+ * return value is for — silently dropping the working copy would leave the app
+ * promising an offline safety net it no longer has, and the banner underneath
+ * saying the change was kept here when it was not.
+ */
+export function writeSnapshot(key: string, data: FinanceData): boolean {
   try {
     localStorage.setItem(key, JSON.stringify(data))
+    return true
   } catch {
-    // Quota or private-mode failures are non-fatal; the session still works.
+    return false
   }
 }
 
@@ -102,8 +123,11 @@ export function isOfflineError(cause: unknown): boolean {
 }
 
 export class SyncingRepository implements FinanceRepository {
-  private state: SyncState = { status: 'synced', message: null }
+  private state: SyncState = { status: 'synced', message: null, stored: true }
   private listeners = new Set<(state: SyncState) => void>()
+
+  /** Whether the last change reached this browser's own storage. */
+  private stored = true
 
   /** False until a load has actually reached the server this session. */
   private reconciled = false
@@ -138,7 +162,9 @@ export class SyncingRepository implements FinanceRepository {
     if (this.working === WORKING_KEY) return null
     const carried = readSnapshot(WORKING_KEY)
     if (!carried) return null
-    writeSnapshot(this.working, carried)
+    // Only hand it over once it is somewhere else; a browser that cannot write
+    // must not lose the work it was carrying.
+    if (!writeSnapshot(this.working, carried)) return carried
     try {
       localStorage.removeItem(WORKING_KEY)
     } catch {
@@ -165,13 +191,13 @@ export class SyncingRepository implements FinanceRepository {
   async save(data: FinanceData): Promise<void> {
     await this.serialise(async () => {
       // The browser first, always. Everything after this is delivery.
-      writeSnapshot(this.working, data)
+      this.stored = writeSnapshot(this.working, data)
 
       try {
         if (this.reconciled) {
           await this.remote.save(data)
           writeSnapshot(this.synced, data)
-          this.set({ status: 'synced', message: null })
+          this.publish('synced')
         } else {
           // Nothing has been reconciled with the server yet this session, so
           // pushing a diff would be against a baseline that may not be the
@@ -207,12 +233,9 @@ export class SyncingRepository implements FinanceRepository {
     } catch (cause) {
       if (isOfflineError(cause)) {
         const base = readSnapshot(this.synced) ?? emptyData
-        this.set({
-          status: hasPendingWork(base, local) ? 'pending' : 'offline',
-          message: null,
-        })
+        this.publish(hasPendingWork(base, local) ? 'pending' : 'offline')
       } else {
-        this.set({ status: 'failed', message: describeError(cause) })
+        this.publish('failed', describeError(cause))
       }
       return null
     }
@@ -229,14 +252,14 @@ export class SyncingRepository implements FinanceRepository {
       if (JSON.stringify(merged) !== JSON.stringify(remoteData)) {
         await this.remote.save(merged)
       }
-      writeSnapshot(this.working, merged)
+      this.stored = writeSnapshot(this.working, merged)
       writeSnapshot(this.synced, merged)
-      this.set({ status: 'synced', message: null })
+      this.publish('synced')
       return merged
     } catch (cause) {
       // The read got through and the write did not; the merge is still the
       // best copy this browser has, so it is kept and queued.
-      writeSnapshot(this.working, merged)
+      this.stored = writeSnapshot(this.working, merged)
       this.report(cause)
       return merged
     }
@@ -244,15 +267,15 @@ export class SyncingRepository implements FinanceRepository {
 
   private report(cause: unknown): void {
     if (isOfflineError(cause)) {
-      this.set({ status: 'pending', message: null })
+      this.publish('pending')
     } else {
-      this.set({ status: 'failed', message: describeError(cause) })
+      this.publish('failed', describeError(cause))
     }
   }
 
-  private set(state: SyncState): void {
-    this.state = state
-    for (const listener of this.listeners) listener(state)
+  private publish(status: SyncStatus, message: string | null = null): void {
+    this.state = { status, message, stored: this.stored }
+    for (const listener of this.listeners) listener(this.state)
   }
 
   /** Every entry point goes through here, so two of them cannot overlap. */

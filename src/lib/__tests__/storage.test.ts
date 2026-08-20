@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { LocalStorageRepository, emptyData, normaliseData } from '../storage'
 import type { FinanceData } from '../types'
-import { syncedKey, workingKey } from '../syncingRepository'
+import { readSnapshot, syncedKey, workingKey, writeSnapshot } from '../syncingRepository'
 
 const KEY = 'spendly.data.v1'
 
@@ -85,6 +85,83 @@ describe('reading a stored snapshot', () => {
       categories: [{ id: 'c1', name: 'Kirayə', type: 'expense' }],
     }
     expect(normaliseData(stored).categories).toEqual(stored.categories)
+  })
+})
+
+/**
+ * Storage that will not take the change.
+ *
+ * A full quota used to be swallowed: the write failed, nothing was said, and
+ * the banner underneath went on promising the edit had been kept here. That
+ * was the one sentence in the app that was not true, said at the moment it
+ * mattered most.
+ */
+describe('storage that refuses the write', () => {
+  const full = () => {
+    store.setItem = () => {
+      throw new DOMException('QuotaExceededError')
+    }
+  }
+
+  it('says so rather than reporting a save that did not happen', () => {
+    full()
+    expect(writeSnapshot(workingKey('u1'), emptyData)).toBe(false)
+  })
+
+  it('rejects in local-only mode, where there is no server to fall back on', async () => {
+    full()
+    await expect(new LocalStorageRepository().save(emptyData)).rejects.toThrow(
+      /yaddaşı doludur/,
+    )
+  })
+
+  it('reads back what it did manage to write', () => {
+    expect(writeSnapshot(workingKey('u1'), emptyData)).toBe(true)
+    expect(readSnapshot(workingKey('u1'))).toEqual(emptyData)
+  })
+})
+
+/**
+ * Reading a snapshot that is not quite right.
+ *
+ * One row an older build wrote differently must not cost the person every
+ * other row they entered offline.
+ */
+describe('a damaged snapshot', () => {
+  it('keeps the rows it can read when one of them is broken', () => {
+    const stored = {
+      transactions: [
+        {
+          id: 't1',
+          date: '2026-08-05',
+          type: 'expense',
+          category: 'Ərzaq',
+          description: 'Bazarlıq',
+          amount: 40,
+        },
+        {
+          id: 't3',
+          date: '2026-08-06',
+          type: 'expense',
+          category: 'Ərzaq',
+          description: 'Çörək',
+          amount: 5,
+        },
+      ],
+      savingsPots: [{ id: 'p1', name: 'Ehtiyat fondu' }],
+      // Written by something that thought this was an object.
+      savingsEntries: { broken: true },
+    }
+
+    const read = normaliseData(stored)
+    expect(read.transactions.map((t) => t.id)).toEqual(['t1', 't3'])
+    expect(read.savingsPots).toHaveLength(1)
+    expect(read.savingsEntries).toEqual([])
+  })
+
+  it('reads nothing at all as an empty account rather than a crash', () => {
+    expect(normaliseData(null)).toEqual(emptyData)
+    expect(normaliseData('not a snapshot')).toEqual(emptyData)
   })
 })
 

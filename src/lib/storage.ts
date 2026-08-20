@@ -62,7 +62,10 @@ export class LocalStorageRepository implements FinanceRepository {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
     } catch {
-      // Quota or private-mode failures are non-fatal; the session still works.
+      // There is no server behind this one, so storage that will not take the
+      // change means the edit is nowhere. Saying nothing would leave it on
+      // screen looking saved until the tab is next opened.
+      throw new Error('Bu brauzerin yaddaşı doludur.')
     }
   }
 }

@@ -43,14 +43,93 @@ type Row = Record<string, unknown>
  * else's, it fails as a row level security violation — the row it collided
  * with is one the policies hide — and no edit gets saved.
  */
-const BY_OWNER = { onConflict: 'user_id,id' } as const
+const BY_OWNER = 'user_id,id'
+
+/** Income and savings plans have no id of their own; the month is their key. */
+const BY_MONTH = 'user_id,month'
+
+/** Rows asked for per read. The server caps this as well — Supabase ships
+ *  `db-max-rows` set to 1000 — which is why nothing here treats a short page
+ *  as the end of the table. */
+export const PAGE_ROWS = 1000
+
+/** Rows written per request. */
+const WRITE_ROWS = 500
+
+/** Keys per delete. These travel in the URL, which is the short one. */
+export const DELETE_KEYS = 100
+
+export function batched<T>(items: T[], size: number): T[][] {
+  const batches: T[][] = []
+  for (let index = 0; index < items.length; index += size) {
+    batches.push(items.slice(index, index + size))
+  }
+  return batches
+}
+
+/**
+ * Every row of a table, in pages.
+ *
+ * PostgREST answers with at most `db-max-rows` rows and says nothing about it.
+ * A single unpaged request therefore looked like a complete answer while
+ * quietly being the first thousand rows, and the merge then wrote that
+ * truncated picture back over the browser's own copy: an account with more
+ * history than that watched a shifting subset of it appear and disappear.
+ *
+ * So the total comes from the server's own count rather than from the size of
+ * a page, and `order` keeps the pages from overlapping — without it PostgREST
+ * is free to answer in any order it likes and an offset means nothing.
+ */
+export async function selectAll(
+  client: NonNullable<typeof supabase>,
+  table: string,
+  order: string,
+): Promise<Row[]> {
+  const rows: Row[] = []
+  let total: number | null = null
+
+  for (;;) {
+    // Counting is what makes the end of the table knowable, so it is asked
+    // for once and not on every page.
+    const { data, error, count } = await client
+      .from(table)
+      .select('*', { count: total === null ? 'exact' : undefined })
+      .order(order, { ascending: true })
+      .range(rows.length, rows.length + PAGE_ROWS - 1)
+
+    if (error) throw error
+
+    const page = (data ?? []) as Row[]
+    if (page.length === 0) break
+    rows.push(...page)
+
+    if (total === null && typeof count === 'number') total = count
+    if (total !== null && rows.length >= total) break
+    // No count came back, so the end of the table is not knowable from here;
+    // a short page is the best signal left.
+    if (total === null && page.length < PAGE_ROWS) break
+  }
+
+  return rows
+}
 
 export class SupabaseRepository implements FinanceRepository {
   /** The last snapshot known to be persisted, used to diff the next one. */
   private previous: FinanceData = emptyData
   /** Tail of the write queue, so saves apply in the order they were made. */
   private queue: Promise<unknown> = Promise.resolve()
-  private userId: string | null = null
+
+  constructor(
+    /**
+     * The account this repository was built for.
+     *
+     * A store can outlive the account it was made for — a save begun before
+     * somebody signed out can land after somebody else has signed in — and
+     * without this it would land as them: one person's rows written into
+     * another person's account.
+     */
+    private readonly owner?: string | null,
+  ) {}
 
   async load(): Promise<FinanceData> {
     return withTokenRetry(() => this.read())
@@ -58,7 +137,7 @@ export class SupabaseRepository implements FinanceRepository {
 
   private async read(): Promise<FinanceData> {
     const client = requireClient()
-    this.userId = await requireUser()
+    await this.requireUser()
 
     const [
       transactions,
@@ -69,33 +148,23 @@ export class SupabaseRepository implements FinanceRepository {
       entries,
       savingsPlans,
     ] = await Promise.all([
-      client.from('transactions').select('*'),
-      client.from('budget_lines').select('*'),
-      client.from('income_plans').select('*'),
-      client.from('categories').select('*'),
-      client.from('savings_pots').select('*'),
-      client.from('savings_entries').select('*'),
-      client.from('savings_plans').select('*'),
+      selectAll(client, 'transactions', 'id'),
+      selectAll(client, 'budget_lines', 'id'),
+      selectAll(client, 'income_plans', 'month'),
+      selectAll(client, 'categories', 'id'),
+      selectAll(client, 'savings_pots', 'id'),
+      selectAll(client, 'savings_entries', 'id'),
+      selectAll(client, 'savings_plans', 'month'),
     ])
 
-    const failure =
-      transactions.error ??
-      budgetLines.error ??
-      incomePlans.error ??
-      categories.error ??
-      pots.error ??
-      entries.error ??
-      savingsPlans.error
-    if (failure) throw failure
-
     const data: FinanceData = {
-      transactions: (transactions.data ?? []).map(toTransaction),
-      budgetLines: (budgetLines.data ?? []).map(toBudgetLine),
-      incomePlans: (incomePlans.data ?? []).map(toIncomePlan),
-      categories: (categories.data ?? []).map(toCategory),
-      savingsPots: (pots.data ?? []).map(toPot),
-      savingsEntries: (entries.data ?? []).map(toEntry),
-      savingsPlans: (savingsPlans.data ?? []).map(toSavingsPlan),
+      transactions: transactions.map(toTransaction),
+      budgetLines: budgetLines.map(toBudgetLine),
+      incomePlans: incomePlans.map(toIncomePlan),
+      categories: categories.map(toCategory),
+      savingsPots: pots.map(toPot),
+      savingsEntries: entries.map(toEntry),
+      savingsPlans: savingsPlans.map(toSavingsPlan),
     }
 
     // An account created before categories were stored has none of its own.
@@ -113,30 +182,57 @@ export class SupabaseRepository implements FinanceRepository {
    * The returned promise rejects when the write failed, so the caller can say
    * so. The queue's own copy of it must not, or one rejected write would
    * poison every save that follows it.
+   *
+   * The baseline is read when the write runs rather than when it is queued.
+   * Reading it at queue time meant a save that failed left the one behind it
+   * diffing against a state the server had never accepted, so the rows the
+   * failed write was carrying were never sent again — an edit that reported a
+   * failure and then quietly stayed missing after the retry appeared to work.
    */
   save(data: FinanceData): Promise<void> {
-    // Capture the baseline now so queued saves diff against the right state.
-    const baseline = this.previous
-    this.previous = data
-
-    const write = this.queue.then(() =>
-      withTokenRetry(() => this.write(baseline, data)),
-    )
-
-    this.queue = write.catch(() => {
-      // Re-sync on the next load rather than leaving a wrong baseline.
-      this.previous = baseline
+    const write = this.queue.then(async () => {
+      const baseline = this.previous
+      this.previous = data
+      try {
+        await withTokenRetry(() => this.write(baseline, data))
+      } catch (cause) {
+        // Re-sync on the next load rather than leaving a wrong baseline.
+        this.previous = baseline
+        throw cause
+      }
     })
+
+    this.queue = write.catch(() => undefined)
 
     return write
   }
 
   private async write(before: FinanceData, after: FinanceData): Promise<void> {
     const client = requireClient()
-    const userId = this.userId ?? (await requireUser())
-    this.userId = userId
+    const userId = await this.requireUser()
 
     const jobs: PromiseLike<{ error: unknown }>[] = []
+
+    /** Rows go up in batches, so a first sync of a long history is a series
+     *  of requests rather than one the server refuses outright. */
+    const send = (table: string, rows: Row[], onConflict: string) => {
+      for (const batch of batched(rows, WRITE_ROWS)) {
+        jobs.push(client.from(table).upsert(batch, { onConflict }))
+      }
+    }
+
+    /**
+     * The keys of a delete travel in the URL, which is the short one: an id is
+     * around forty characters once escaped, and "delete everything" on a real
+     * history built a request line long enough for the gateway to refuse it.
+     * Clearing an account worked for somebody with fifty rows and failed for
+     * somebody with five hundred.
+     */
+    const drop = (table: string, column: string, keys: string[]) => {
+      for (const batch of batched(keys, DELETE_KEYS)) {
+        jobs.push(client.from(table).delete().in(column, batch))
+      }
+    }
 
     // --- transactions ---------------------------------------------------
     const txChanged = changedRows(before.transactions, after.transactions, (t) => ({
@@ -149,12 +245,8 @@ export class SupabaseRepository implements FinanceRepository {
       amount: t.amount,
       note: t.note ?? null,
     }))
-    if (txChanged.upserts.length) {
-      jobs.push(client.from('transactions').upsert(txChanged.upserts, BY_OWNER))
-    }
-    if (txChanged.removed.length) {
-      jobs.push(client.from('transactions').delete().in('id', txChanged.removed))
-    }
+    send('transactions', txChanged.upserts, BY_OWNER)
+    drop('transactions', 'id', txChanged.removed)
 
     // --- budget lines ------------------------------------------------------
     const lineChanged = changedRows(before.budgetLines, after.budgetLines, (l) => ({
@@ -165,12 +257,8 @@ export class SupabaseRepository implements FinanceRepository {
       category: l.category,
       planned: l.planned,
     }))
-    if (lineChanged.upserts.length) {
-      jobs.push(client.from('budget_lines').upsert(lineChanged.upserts, BY_OWNER))
-    }
-    if (lineChanged.removed.length) {
-      jobs.push(client.from('budget_lines').delete().in('id', lineChanged.removed))
-    }
+    send('budget_lines', lineChanged.upserts, BY_OWNER)
+    drop('budget_lines', 'id', lineChanged.removed)
 
     // --- categories ---------------------------------------------------------
     const categoryChanged = changedRows(before.categories, after.categories, (c) => ({
@@ -180,12 +268,8 @@ export class SupabaseRepository implements FinanceRepository {
       type: c.type,
       kind: c.kind ?? null,
     }))
-    if (categoryChanged.upserts.length) {
-      jobs.push(client.from('categories').upsert(categoryChanged.upserts, BY_OWNER))
-    }
-    if (categoryChanged.removed.length) {
-      jobs.push(client.from('categories').delete().in('id', categoryChanged.removed))
-    }
+    send('categories', categoryChanged.upserts, BY_OWNER)
+    drop('categories', 'id', categoryChanged.removed)
 
     // --- savings pots -------------------------------------------------------
     const potChanged = changedRows(before.savingsPots, after.savingsPots, (p) => ({
@@ -194,12 +278,8 @@ export class SupabaseRepository implements FinanceRepository {
       name: p.name,
       target: p.target ?? null,
     }))
-    if (potChanged.upserts.length) {
-      jobs.push(client.from('savings_pots').upsert(potChanged.upserts, BY_OWNER))
-    }
-    if (potChanged.removed.length) {
-      jobs.push(client.from('savings_pots').delete().in('id', potChanged.removed))
-    }
+    send('savings_pots', potChanged.upserts, BY_OWNER)
+    drop('savings_pots', 'id', potChanged.removed)
 
     // --- savings entries ----------------------------------------------------
     const entryChanged = changedRows(
@@ -216,14 +296,8 @@ export class SupabaseRepository implements FinanceRepository {
         note: e.note ?? null,
       }),
     )
-    if (entryChanged.upserts.length) {
-      jobs.push(client.from('savings_entries').upsert(entryChanged.upserts, BY_OWNER))
-    }
-    if (entryChanged.removed.length) {
-      jobs.push(
-        client.from('savings_entries').delete().in('id', entryChanged.removed),
-      )
-    }
+    send('savings_entries', entryChanged.upserts, BY_OWNER)
+    drop('savings_entries', 'id', entryChanged.removed)
 
     // --- income plans (keyed by month, not by a generated id) --------------
     const planChanged = changedRows(
@@ -235,18 +309,8 @@ export class SupabaseRepository implements FinanceRepository {
         amounts: p.amounts,
       }),
     )
-    if (planChanged.upserts.length) {
-      jobs.push(
-        client.from('income_plans').upsert(planChanged.upserts, {
-          onConflict: 'user_id,month',
-        }),
-      )
-    }
-    if (planChanged.removed.length) {
-      jobs.push(
-        client.from('income_plans').delete().in('month', planChanged.removed),
-      )
-    }
+    send('income_plans', planChanged.upserts, BY_MONTH)
+    drop('income_plans', 'month', planChanged.removed)
 
     // --- savings plans (keyed by month, like income plans) ------------------
     const savingsPlanChanged = changedRows(
@@ -258,22 +322,28 @@ export class SupabaseRepository implements FinanceRepository {
         amounts: p.amounts,
       }),
     )
-    if (savingsPlanChanged.upserts.length) {
-      jobs.push(
-        client.from('savings_plans').upsert(savingsPlanChanged.upserts, {
-          onConflict: 'user_id,month',
-        }),
-      )
-    }
-    if (savingsPlanChanged.removed.length) {
-      jobs.push(
-        client.from('savings_plans').delete().in('month', savingsPlanChanged.removed),
-      )
-    }
+    send('savings_plans', savingsPlanChanged.upserts, BY_MONTH)
+    drop('savings_plans', 'month', savingsPlanChanged.removed)
 
     const results = await Promise.all(jobs)
     const failed = results.find((result) => result.error)
     if (failed?.error) throw failed.error
+  }
+
+  /**
+   * Who this write belongs to.
+   *
+   * The repository never signs anyone in. The app decides who is signed in and
+   * only mounts this once someone is, so reaching here without a session is a
+   * bug rather than a state to recover from — and so is reaching it as
+   * somebody other than the owner, which is a store that has outlived its
+   * account still trying to write.
+   */
+  private async requireUser(): Promise<string> {
+    const userId = await currentUserId()
+    if (!userId) throw new Error('Hesaba daxil olunmayıb')
+    if (this.owner && this.owner !== userId) throw new Error('Hesaba daxil olunmayıb')
+    return userId
   }
 }
 
@@ -307,7 +377,7 @@ export function changedRows<T extends { id: string }>(
   return { upserts, removed }
 }
 
-/** Income and savings plans have no id column; the month is their identity. */
+/** The month stands in for an id, so the diff can key on it like any row. */
 function withMonthKey<T extends { month: string }>(plan: T): T & { id: string } {
   return { ...plan, id: plan.month }
 }
@@ -368,17 +438,6 @@ async function withTokenRetry<T>(run: () => Promise<T>): Promise<T> {
     }
     throw cause
   }
-}
-
-/**
- * The repository never signs anyone in. The app decides who is signed in and
- * only mounts this once someone is, so reaching here without a session is a
- * bug rather than a state to recover from.
- */
-async function requireUser(): Promise<string> {
-  const userId = await currentUserId()
-  if (!userId) throw new Error('Hesaba daxil olunmayıb')
-  return userId
 }
 
 /* --- row mapping. Postgres numerics can arrive as strings. ----------- */

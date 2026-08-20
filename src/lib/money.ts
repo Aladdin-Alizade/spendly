@@ -3,10 +3,20 @@
  * boundary so that repeated addition can never drift (0.1 + 0.2 problems).
  */
 
-/** Round to 2 decimals, half-away-from-zero, avoiding float representation error. */
+/**
+ * Round to 2 decimals, half-away-from-zero, avoiding float representation
+ * error.
+ *
+ * The nudge is applied after the scaling, not before it. `Number.EPSILON` is
+ * the gap between 1 and the next double, so adding it to a figure larger than
+ * 1 changes nothing at all — and 8.165, which is stored as a hair under
+ * 8.165, rounded down to 8.16 while the Android app rounded it to 8.17. The
+ * two apps read one account, so a figure that rounds differently on each is
+ * two answers to the same question.
+ */
 export function round2(value: number): number {
   if (!Number.isFinite(value)) return 0
-  const scaled = Math.round((Math.abs(value) + Number.EPSILON) * 100) / 100
+  const scaled = Math.round(Math.abs(value) * 100 + 1e-9) / 100
   return value < 0 ? -scaled : scaled
 }
 

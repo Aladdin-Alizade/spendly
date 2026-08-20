@@ -50,7 +50,7 @@ function Root() {
           ? // The snapshots belong to the account, not to the browser: one key
             // per account is what stops one account's rows being handed to the
             // next one to sign in here and uploaded as its own.
-            new SyncingRepository(new SupabaseRepository(), userId)
+            new SyncingRepository(new SupabaseRepository(userId), userId)
           : new LocalStorageRepository()
       }
     >

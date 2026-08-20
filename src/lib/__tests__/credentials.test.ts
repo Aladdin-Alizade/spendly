@@ -110,6 +110,13 @@ describe('reset link failures', () => {
       /Yenidən sıfırlama/,
     )
   })
+
+  it('says the same when the backend only calls the link invalid', () => {
+    // Not every refusal mentions expiry — a link that has already been used
+    // comes back as invalid on its own, and the answer is the same one either
+    // way.
+    expect(authErrorMessage('Email link is invalid')).toMatch(/Yenidən sıfırlama/)
+  })
 })
 
 describe('rate limits', () => {

@@ -357,6 +357,19 @@ describe('money', () => {
     expect(round2(2.675)).toBe(2.68)
     expect(sum([0.1, 0.2])).toBe(0.3)
   })
+
+  it('rounds a half cent up above one manat, the way the Android app does', () => {
+    // The two apps read one account, so a figure that rounds differently on
+    // each is two answers to the same question. These are the ones that used
+    // to disagree: `Number.EPSILON` is the gap between 1 and the next double,
+    // so adding it to a figure larger than 1 changed nothing at all and 8.165
+    // fell to 8.16 here while Android read 8.17.
+    expect(round2(8.165)).toBe(8.17)
+    expect(round2(2.135)).toBe(2.14)
+    expect(round2(4.015)).toBe(4.02)
+    expect(round2(-8.165)).toBe(-8.17)
+    expect(parseAmount('8.165')).toBe(8.17)
+  })
 })
 
 describe('dates', () => {

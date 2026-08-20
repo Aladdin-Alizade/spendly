@@ -142,7 +142,7 @@ export function authErrorMessage(message: string): string {
   if (/new password should be different|same as the old password/i.test(message)) {
     return 'Yeni şifrə köhnəsindən fərqli olmalıdır'
   }
-  if (/expired|invalid token|invalid jwt|token has expired|otp_expired/i.test(message)) {
+  if (/expired|invalid token|invalid jwt|otp_expired|link is invalid/i.test(message)) {
     return 'Link vaxtı keçib və ya artıq istifadə olunub. Yenidən sıfırlama tələb edin.'
   }
   /*

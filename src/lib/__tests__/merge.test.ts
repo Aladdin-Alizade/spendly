@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { hasPendingWork, mergeFinanceData, mergeRows } from '../merge'
+import { emptyData } from '../storage'
 import { sheetCategories } from './fixtures'
 import type { CategoryDef, FinanceData, Transaction } from '../types'
 
@@ -125,6 +126,23 @@ describe('mergeFinanceData', () => {
     const remote = { ...base, transactions: [...base.transactions, tx('elsewhere')] }
     expect(mergeFinanceData(base, base, remote)).toEqual(remote)
   })
+
+  it('hands the whole account back after storage has been cleared', () => {
+    // Clearing site data takes the snapshots with it, so a browser starting
+    // over holds nothing and has no baseline either. Nothing was deleted here
+    // — there is no baseline to have deleted it from — so every row on the
+    // server comes back untouched.
+    expect(mergeFinanceData(emptyData, emptyData, base)).toEqual(base)
+  })
+
+  it('does not resurrect what was deleted before the storage was cleared', () => {
+    // The mirror of the case above, and the one that would be a bug: a row the
+    // account no longer has must not reappear just because this browser is
+    // starting from nothing.
+    const merged = mergeFinanceData(emptyData, emptyData, base)
+    expect(merged.transactions.some((t) => t.id === 'gone')).toBe(false)
+    expect(ids(merged.transactions, (t) => t.id)).toEqual(ids(base.transactions, (t) => t.id))
+  })
 })
 
 describe('hasPendingWork', () => {
@@ -199,5 +217,83 @@ describe('the same category under two ids', () => {
       data([]),
     )
     expect(merged.categories).toHaveLength(2)
+  })
+
+  it('carries the rows of the dropped spelling onto the one that survives', () => {
+    // The server keeps names apart by exact spelling, the app by name
+    // regardless of case — so the two devices can each be right and still hold
+    // 'ərzaq' and 'Ərzaq'. Dropping the definition alone left this browser's
+    // transactions naming a category the picker no longer offered, and opening
+    // one of them asked for a category that could not be chosen.
+    const merged = mergeFinanceData(
+      data([]),
+      {
+        ...data([category('a', 'ərzaq')]),
+        transactions: [{ ...tx('t1', 40), category: 'ərzaq' }],
+        budgetLines: [
+          { id: 'b1', month: '2026-08', description: 'Bazarlıq', category: 'ərzaq', planned: 300 },
+        ],
+      },
+      data([category('b', 'Ərzaq')]),
+    )
+
+    expect(merged.categories.map((c) => c.name)).toEqual(['Ərzaq'])
+    expect(merged.transactions[0].category).toBe('Ərzaq')
+    expect(merged.budgetLines[0].category).toBe('Ərzaq')
+  })
+
+  it('carries a planned income figure onto the surviving spelling', () => {
+    const income = (id: string, name: string): CategoryDef => ({ id, name, type: 'income' })
+    const merged = mergeFinanceData(
+      data([]),
+      {
+        ...data([income('a', 'maaş')]),
+        incomePlans: [{ month: '2026-08', amounts: { 'maaş': 990 } }],
+      },
+      data([income('b', 'Maaş')]),
+    )
+
+    expect(merged.incomePlans[0].amounts).toEqual({ 'Maaş': 990 })
+  })
+})
+
+describe('the same pot under two ids', () => {
+  const empty: FinanceData = {
+    transactions: [],
+    budgetLines: [],
+    incomePlans: [],
+    categories: [],
+    savingsPots: [],
+    savingsEntries: [],
+    savingsPlans: [],
+  }
+
+  it('carries the entries and the plan of the dropped pot onto the survivor', () => {
+    // A pot is unique by name on the server and every entry names its pot, so
+    // the same collision has the same answer — and the same duty to take
+    // everything that named the loser with it.
+    const merged = mergeFinanceData(
+      empty,
+      {
+        ...empty,
+        savingsPots: [{ id: 'a', name: 'ehtiyat fondu' }],
+        savingsEntries: [
+          {
+            id: 'e1',
+            date: '2026-08-05',
+            pot: 'ehtiyat fondu',
+            amount: 400,
+            direction: 'in',
+            source: 'income',
+          },
+        ],
+        savingsPlans: [{ month: '2026-08', amounts: { 'ehtiyat fondu': 400 } }],
+      },
+      { ...empty, savingsPots: [{ id: 'b', name: 'Ehtiyat fondu' }] },
+    )
+
+    expect(merged.savingsPots.map((p) => p.name)).toEqual(['Ehtiyat fondu'])
+    expect(merged.savingsEntries[0].pot).toBe('Ehtiyat fondu')
+    expect(merged.savingsPlans[0].amounts).toEqual({ 'Ehtiyat fondu': 400 })
   })
 })

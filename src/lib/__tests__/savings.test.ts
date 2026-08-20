@@ -222,6 +222,36 @@ describe('pots', () => {
     )
   })
 
+  it("carries the month's planned figure across on a rename", () => {
+    // The plan is keyed by pot name, the way the income plan is keyed by
+    // category name. Moving only the entries left the figure behind under a
+    // pot that no longer existed, so the screen reported it as an orphan and
+    // the pot it belonged to looked unplanned.
+    const data = build({
+      savingsEntries: [entry({ id: 'a', amount: 400 })],
+      savingsPlans: [{ month: '2026-08', amounts: { 'Ehtiyat fondu': 400 } }],
+    })
+
+    const renamed = renamePot(data, 'p1', 'Təhlükəsizlik yastığı')
+    expect(renamed.savingsPlans[0].amounts).toEqual({ 'Təhlükəsizlik yastığı': 400 })
+  })
+
+  it('adds the planned figures together when a pot is merged into another', () => {
+    const data = build({
+      savingsPots: [
+        { id: 'p1', name: 'Ehtiyat fondu' },
+        { id: 'p2', name: 'Avtomobil' },
+      ],
+      savingsEntries: [entry({ id: 'a', amount: 400 })],
+      savingsPlans: [
+        { month: '2026-08', amounts: { 'Ehtiyat fondu': 400, 'Avtomobil': 100 } },
+      ],
+    })
+
+    const removed = removePot(data, 'p1', 'Avtomobil')
+    expect(removed.savingsPlans[0].amounts).toEqual({ 'Avtomobil': 500 })
+  })
+
   it('refuses to delete a pot that still holds something', () => {
     const data = build({ savingsEntries: [entry({ id: 'a' })] })
     expect(removePot(data, 'p1')).toBe(data)
