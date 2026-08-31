@@ -13,6 +13,7 @@ import {
   isCategoryKind,
   isSavingsDirection,
   isSavingsSource,
+  isRepeatKind,
   migrateCategory,
   migrateIncomePlan,
 } from './types'
@@ -81,6 +82,7 @@ export function normaliseData(value: unknown): FinanceData {
       ? data.transactions.map((transaction: Transaction) => ({
           ...transaction,
           category: migrateCategory(transaction.category) as Category,
+          repeats: isRepeatKind(transaction.repeats) ? transaction.repeats : undefined,
         }))
       : [],
     budgetLines: Array.isArray(data.budgetLines)

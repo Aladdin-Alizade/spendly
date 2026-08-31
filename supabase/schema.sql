@@ -26,6 +26,8 @@ create table if not exists public.transactions (
   -- Amounts are always stored positive; direction comes from `type`.
   amount      numeric(14, 2) not null check (amount > 0),
   note        text,
+  -- A monthly repeat is an offer on the next month's log, not an insert.
+  repeats     text check (repeats is null or repeats in ('monthly')),
   created_at  timestamptz not null default now(),
   -- Ids are minted in the browser and are only ever unique to one person.
   -- Accounts made while the app handed out a starting set of categories and a
@@ -199,6 +201,19 @@ begin
   alter table public.categories
     add constraint categories_kind_check
     check (kind is null or kind in ('essential', 'discretionary', 'debt', 'saving'));
+exception
+  when duplicate_object then null;
+end $$;
+
+-- Brings a project created before monthly repeats were stored up to date.
+alter table public.transactions
+  add column if not exists repeats text;
+
+do $$
+begin
+  alter table public.transactions
+    add constraint transactions_repeats_check
+    check (repeats is null or repeats in ('monthly'));
 exception
   when duplicate_object then null;
 end $$;

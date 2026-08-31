@@ -244,6 +244,7 @@ export class SupabaseRepository implements FinanceRepository {
       description: t.description,
       amount: t.amount,
       note: t.note ?? null,
+      repeats: t.repeats ?? null,
     }))
     send('transactions', txChanged.upserts, BY_OWNER)
     drop('transactions', 'id', txChanged.removed)
@@ -456,6 +457,7 @@ function toTransaction(row: Row): Transaction {
     description: String(row.description),
     amount: num(row.amount),
     note: row.note ? String(row.note) : undefined,
+    repeats: row.repeats === 'monthly' ? 'monthly' : undefined,
   }
 }
 

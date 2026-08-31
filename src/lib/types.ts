@@ -79,6 +79,13 @@ export function isCategoryKind(value: unknown): value is CategoryKind {
   return typeof value === 'string' && (CATEGORY_KINDS as string[]).includes(value)
 }
 
+/** A transaction that should be offered again next month, until it is logged. */
+export type RepeatKind = 'monthly'
+
+export function isRepeatKind(value: unknown): value is RepeatKind {
+  return value === 'monthly'
+}
+
 /**
  * Categories are user data, so these are plain strings. The named aliases are
  * kept because they say which side of the ledger a field belongs to, which a
@@ -125,6 +132,8 @@ export interface Transaction {
   /** Always stored positive. Direction is carried by `type`. */
   amount: number
   note?: string
+  /** Absent means it is a one-off. Nothing is inserted automatically. */
+  repeats?: RepeatKind
 }
 
 /** One planned expense row of 'Aylıq rasxod' (columns B, C, D). */

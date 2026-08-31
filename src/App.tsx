@@ -124,6 +124,7 @@ export function App() {
             month={month}
             onSelect={setEditing}
             onAdd={openNew}
+            onLogRepeat={addTransaction}
           />
         )}
         {screen === 'budget' && <Budget data={data} month={month} />}

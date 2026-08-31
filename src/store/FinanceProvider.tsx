@@ -11,6 +11,11 @@ import type { ReactNode } from 'react'
 import { LocalStorageRepository, emptyData } from '../lib/storage'
 import type { FinanceRepository } from '../lib/storage'
 import { round2 } from '../lib/money'
+import {
+  exportTransactionsCsv,
+  importTransactionsFromCsv,
+  type CsvImportSummary,
+} from '../lib/csv'
 import { describeError } from '../lib/setupHints'
 import { SyncingRepository } from '../lib/syncingRepository'
 import type { SyncState } from '../lib/syncingRepository'
@@ -89,6 +94,8 @@ interface FinanceContextValue {
   /** Turn savings recorded the old way — as spending into a category marked
    *  `saving` — into pot deposits. The expenses go, so nothing counts twice. */
   convertSavingsFromTransactions(): void
+  importCsv(text: string): CsvImportSummary
+  exportCsv(): string
   /** Delete every transaction, plan and budget line. Not reversible. */
   resetAll(): void
 }
@@ -442,6 +449,31 @@ export function FinanceProvider({
 
       convertSavingsFromTransactions() {
         commit((previous) => convertSavingTransactions(previous, nextId))
+      },
+
+      importCsv(text) {
+        let summary: CsvImportSummary = {
+          added: 0,
+          skipped: 0,
+          categoriesCreated: 0,
+          errors: ['Faylda əməliyyat yoxdur.'],
+        }
+        commit((previous) => {
+          const result = importTransactionsFromCsv(previous, text, nextId)
+          summary = {
+            added: result.added,
+            skipped: result.skipped,
+            categoriesCreated: result.categoriesCreated,
+            errors: result.errors,
+          }
+          if (result.added === 0 && result.categoriesCreated === 0) return previous
+          return result.data
+        })
+        return summary
+      },
+
+      exportCsv() {
+        return exportTransactionsCsv(data.transactions)
       },
 
       addCategory(name, type, kind) {

@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { EmptyState } from '../components/primitives'
 import { TransactionList } from '../components/TransactionList'
 import { formatAZN, formatSignedAZN, sum } from '../lib/money'
-import { formatMonth } from '../lib/dates'
+import { formatMonth, today } from '../lib/dates'
 import {
+  copyForMonth,
+  dueMonthlyTransactions,
   filterTransactions,
   sortTransactions,
   transactionsInMonth,
@@ -21,11 +23,13 @@ export function Transactions({
   month,
   onSelect,
   onAdd,
+  onLogRepeat,
 }: {
   data: FinanceData
   month: MonthKey
   onSelect: (transaction: Transaction) => void
   onAdd: () => void
+  onLogRepeat: (transaction: Omit<Transaction, 'id'>) => void
 }) {
   const [type, setType] = useState<TransactionTypeFilter>('all')
   const [category, setCategory] = useState('')
@@ -35,6 +39,7 @@ export function Transactions({
   const typed = filterTransactions(all, { type })
   const categories = usedCategories(typed)
   const visible = filterTransactions(all, { type, category, query })
+  const due = dueMonthlyTransactions(data.transactions, month)
 
   useEffect(() => {
     if (category && !categories.includes(category)) setCategory('')
@@ -47,24 +52,55 @@ export function Transactions({
       ? sum(visible.map((item) => (item.type === 'income' ? item.amount : -item.amount)))
       : sum(visible.map((item) => item.amount))
 
+  const dueList = due.length > 0 && (
+    <div className="card due-card">
+      <div className="due-head">
+        <p className="section-title">Hər ay təkrarlanan</p>
+      </div>
+      {due.map((item) => (
+        <div className="due-row" key={item.id}>
+          <span className="row-main">
+            <span className="row-title">{item.description}</span>
+            <span className="row-meta">
+              {item.category} · {formatAZN(item.amount)}
+            </span>
+          </span>
+          <button
+            type="button"
+            className="button button-quiet"
+            onClick={() => onLogRepeat(copyForMonth(item, month, today()))}
+          >
+            Bu ay qeyd et
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+
   if (all.length === 0) {
     return (
-      <div className="card" style={{ marginTop: 28 }}>
-        <EmptyState
-          title={`${formatMonth(month)} üçün qeyd yoxdur`}
-          body="Bu ay üçün əlavə etdiyiniz əməliyyatlar burada görünəcək."
-          action={
-            <button type="button" className="button button-primary" onClick={onAdd}>
-              Əməliyyat əlavə et
-            </button>
-          }
-        />
-      </div>
+      <section className="section">
+        {dueList}
+        {due.length === 0 && (
+          <div className="card" style={{ marginTop: 28 }}>
+            <EmptyState
+              title={`${formatMonth(month)} üçün qeyd yoxdur`}
+              body="Bu ay üçün əlavə etdiyiniz əməliyyatlar burada görünəcək."
+              action={
+                <button type="button" className="button button-primary" onClick={onAdd}>
+                  Əməliyyat əlavə et
+                </button>
+              }
+            />
+          </div>
+        )}
+      </section>
     )
   }
 
   return (
     <section className="section">
+      {dueList}
       <div className="section-head">
         <div className="tabs">
           {(['all', 'expense', 'income'] as TransactionTypeFilter[]).map((option) => (

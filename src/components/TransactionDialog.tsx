@@ -3,6 +3,7 @@ import { parseAmount } from '../lib/money'
 import { hasErrors, validateTransaction } from '../lib/validate'
 import type { FieldErrors, TransactionInput } from '../lib/validate'
 import { categoryNames } from '../lib/categories'
+import { descriptionSuggestions, lastCategoryForDescription } from '../lib/calc'
 import { useFinance } from '../store/FinanceProvider'
 import type { Transaction, TransactionType } from '../lib/types'
 
@@ -36,9 +37,12 @@ export function TransactionDialog({
     description: transaction?.description ?? '',
     amount: transaction ? String(transaction.amount) : '',
     note: transaction?.note ?? '',
+    repeats: transaction?.repeats === 'monthly',
   }))
   const [showErrors, setShowErrors] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  /* An edit already has its category; filling from memory would overwrite it. */
+  const [categoryTouched, setCategoryTouched] = useState(isEditing)
 
   const categories = input.type === 'income' ? incomeCategories : expenseCategories
 
@@ -56,6 +60,16 @@ export function TransactionDialog({
   )
   const visibleErrors = showErrors ? errors : {}
 
+  const suggestions = useMemo(() => {
+    const remembered = descriptionSuggestions(
+      data.transactions,
+      input.type,
+      input.description,
+    )
+    const current = input.description.trim().toLocaleLowerCase('az')
+    return remembered.filter((label) => label.toLocaleLowerCase('az') !== current)
+  }, [data.transactions, input.type, input.description])
+
   const firstFieldRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
     firstFieldRef.current?.focus()
@@ -72,12 +86,35 @@ export function TransactionDialog({
   const set = <K extends keyof TransactionInput>(key: K, value: TransactionInput[K]) =>
     setInput((previous) => ({ ...previous, [key]: value }))
 
+  const fillCategoryFromMemory = (
+    previous: TransactionInput,
+    description: string,
+  ): string => {
+    if (categoryTouched) return previous.category
+    const remembered = lastCategoryForDescription(
+      data.transactions,
+      previous.type,
+      description,
+    )
+    const allowed = previous.type === 'income' ? incomeCategories : expenseCategories
+    return remembered && allowed.includes(remembered) ? remembered : previous.category
+  }
+
   const setType = (type: TransactionType) => {
+    setCategoryTouched(false)
     setInput((previous) => ({
       ...previous,
       type,
       // Category lists differ per type, so reset to a valid one.
       category: (type === 'income' ? incomeCategories[0] : expenseCategories[0]) ?? '',
+    }))
+  }
+
+  const setDescription = (description: string) => {
+    setInput((previous) => ({
+      ...previous,
+      description,
+      category: fillCategoryFromMemory(previous, description),
     }))
   }
 
@@ -94,6 +131,7 @@ export function TransactionDialog({
       description: input.description.trim(),
       amount: parseAmount(input.amount) ?? 0,
       note: input.note.trim() || undefined,
+      repeats: input.repeats ? 'monthly' : undefined,
     })
   }
 
@@ -169,14 +207,34 @@ export function TransactionDialog({
             <input
               id="tx-description"
               className="input"
+              list="tx-description-list"
               placeholder={
                 input.type === 'income' ? 'Avqust maaşı' : 'Nə aldınız?'
               }
               autoComplete="off"
               value={input.description}
               aria-invalid={Boolean(visibleErrors.description)}
-              onChange={(event) => set('description', event.target.value)}
+              onChange={(event) => setDescription(event.target.value)}
             />
+            <datalist id="tx-description-list">
+              {suggestions.map((label) => (
+                <option key={label} value={label} />
+              ))}
+            </datalist>
+            {suggestions.length > 0 && (
+              <div className="suggest-chips" role="list">
+                {suggestions.map((label) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className="suggest-chip"
+                    onClick={() => setDescription(label)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
             {visibleErrors.description && (
               <p className="field-error">{visibleErrors.description}</p>
             )}
@@ -192,7 +250,10 @@ export function TransactionDialog({
                   id="tx-category"
                   className="select"
                   value={input.category}
-                  onChange={(event) => set('category', event.target.value)}
+                  onChange={(event) => {
+                    setCategoryTouched(true)
+                    set('category', event.target.value)
+                  }}
                 >
                   {options.map((category) => (
                     <option key={category} value={category}>
@@ -248,6 +309,15 @@ export function TransactionDialog({
               onChange={(event) => set('note', event.target.value)}
             />
           </div>
+
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={input.repeats}
+              onChange={(event) => set('repeats', event.target.checked)}
+            />
+            Hər ay təkrarlanır
+          </label>
         </div>
 
         <div className="dialog-foot">

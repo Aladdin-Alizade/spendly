@@ -16,6 +16,7 @@ import {
 import { plannedIncomeOf } from './types'
 import type {
   BudgetLine,
+  DateKey,
   ExpenseCategory,
   FinanceData,
   MonthKey,
@@ -132,6 +133,112 @@ export function usedCategories(transactions: Transaction[]): string[] {
   return [...new Set(transactions.map((item) => item.category).filter(Boolean))].sort((a, b) =>
     a.localeCompare(b, 'az'),
   )
+}
+
+function folded(value: string): string {
+  return value.trim().toLocaleLowerCase('az')
+}
+
+/**
+ * The category last used with this description, on this side of the ledger.
+ * Newest row wins. An empty description remembers nothing.
+ */
+export function lastCategoryForDescription(
+  transactions: Transaction[],
+  type: TransactionType,
+  description: string,
+): string | undefined {
+  const needle = folded(description)
+  if (!needle) return undefined
+  const match = sortTransactions(
+    transactions.filter(
+      (item) => item.type === type && folded(item.description) === needle,
+    ),
+  )[0]
+  return match?.category
+}
+
+/**
+ * Recent unique descriptions for this type, newest first. A query keeps those
+ * that contain it; an empty query is the full recent list.
+ */
+export function descriptionSuggestions(
+  transactions: Transaction[],
+  type: TransactionType,
+  query: string,
+  limit = 8,
+): string[] {
+  const needle = folded(query)
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const item of sortTransactions(transactions.filter((row) => row.type === type))) {
+    const label = item.description.trim()
+    if (!label) continue
+    const key = folded(label)
+    if (seen.has(key)) continue
+    if (needle && !key.includes(needle)) continue
+    seen.add(key)
+    out.push(label)
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+function repeatKey(item: Transaction): string {
+  return `${item.type}\0${item.category}\0${item.description.trim()}`
+}
+
+/**
+ * Monthly rows from earlier months that have not been logged in [month] yet.
+ *
+ * "Already logged" is the same type, category and trimmed description in that
+ * month — the amount may have changed, and that is still a record of it.
+ * Nothing here inserts a row.
+ */
+export function dueMonthlyTransactions(
+  transactions: Transaction[],
+  month: MonthKey,
+): Transaction[] {
+  const logged = new Set(
+    transactions.filter((item) => monthOf(item.date) === month).map(repeatKey),
+  )
+  const latest = new Map<string, Transaction>()
+  for (const item of transactions) {
+    if (item.repeats !== 'monthly') continue
+    if (monthOf(item.date) >= month) continue
+    const key = repeatKey(item)
+    if (logged.has(key)) continue
+    const existing = latest.get(key)
+    if (
+      !existing ||
+      item.date > existing.date ||
+      (item.date === existing.date && item.id > existing.id)
+    ) {
+      latest.set(key, item)
+    }
+  }
+  return sortTransactions([...latest.values()])
+}
+
+/**
+ * Copy a monthly row into another month. Today's date when that month is the
+ * current one, otherwise the first of the month — the same default the add
+ * button already uses.
+ */
+export function copyForMonth(
+  source: Transaction,
+  month: MonthKey,
+  today: DateKey,
+): Omit<Transaction, 'id'> {
+  return {
+    date: monthOf(today) === month ? today : `${month}-01`,
+    type: source.type,
+    category: source.category,
+    description: source.description,
+    amount: source.amount,
+    note: source.note,
+    repeats: 'monthly',
+  }
 }
 
 export function budgetLinesInMonth(

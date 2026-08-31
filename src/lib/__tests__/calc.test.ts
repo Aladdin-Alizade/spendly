@@ -3,7 +3,11 @@ import {
   actualExpenses,
   budgetGroups,
   categoryTotals,
+  copyForMonth,
+  descriptionSuggestions,
+  dueMonthlyTransactions,
   knownMonths,
+  lastCategoryForDescription,
   monthlyTrend,
   plannedExpenses,
   runningBalance,
@@ -530,5 +534,80 @@ describe('usedCategories', () => {
     expect(names).toHaveLength(2)
     expect(names).toContain('Ərzaq')
     expect(names).toContain('Nəqliyyat')
+  })
+})
+
+describe('description memory', () => {
+  const rows = [
+    tx({ id: 'old', date: '2025-08-01', type: 'expense', category: 'Ərzaq', description: 'Market' }),
+    tx({ id: 'new', date: '2025-10-01', type: 'expense', category: 'Nəqliyyat', description: 'Market' }),
+    tx({ id: 'inc', date: '2025-10-02', type: 'income', category: 'Maaş', description: 'Market' }),
+    tx({ id: 'bus', date: '2025-10-03', type: 'expense', category: 'Nəqliyyat', description: 'Avtobus' }),
+  ]
+
+  it('remembers the newest matching category on that side of the ledger', () => {
+    expect(lastCategoryForDescription(rows, 'expense', 'market')).toBe('Nəqliyyat')
+    expect(lastCategoryForDescription(rows, 'income', 'Market')).toBe('Maaş')
+    expect(lastCategoryForDescription(rows, 'expense', '')).toBeUndefined()
+  })
+
+  it('suggests recent unique descriptions, newest first', () => {
+    expect(descriptionSuggestions(rows, 'expense', '')).toEqual(['Avtobus', 'Market'])
+    expect(descriptionSuggestions(rows, 'expense', 'avt')).toEqual(['Avtobus'])
+    expect(descriptionSuggestions(rows, 'income', '')).toEqual(['Market'])
+  })
+})
+
+describe('monthly repeats', () => {
+  it('offers last month\'s monthly row until this month has the same description', () => {
+    const rent = tx({
+      id: 'r1',
+      date: '2025-09-03',
+      category: 'Ev',
+      description: 'Kirayə',
+      amount: 400,
+      repeats: 'monthly',
+    })
+    expect(dueMonthlyTransactions([rent], '2025-10').map((item) => item.id)).toEqual(['r1'])
+    expect(
+      dueMonthlyTransactions(
+        [rent, tx({ id: 'r2', date: '2025-10-02', category: 'Ev', description: 'Kirayə', amount: 420 })],
+        '2025-10',
+      ),
+    ).toEqual([])
+  })
+
+  it('keeps the latest amount when several months are marked monthly', () => {
+    const older = tx({
+      id: 'a',
+      date: '2025-08-01',
+      category: 'Ev',
+      description: 'Kirayə',
+      amount: 380,
+      repeats: 'monthly',
+    })
+    const newer = tx({
+      id: 'b',
+      date: '2025-09-01',
+      category: 'Ev',
+      description: 'Kirayə',
+      amount: 400,
+      repeats: 'monthly',
+    })
+    expect(dueMonthlyTransactions([older, newer], '2025-10')[0]?.amount).toBe(400)
+  })
+
+  it('uses today in the current month and the first of a past month', () => {
+    const source = tx({
+      id: 'r1',
+      date: '2025-09-03',
+      category: 'Ev',
+      description: 'Kirayə',
+      amount: 400,
+      repeats: 'monthly',
+    })
+    expect(copyForMonth(source, '2025-10', '2025-10-14').date).toBe('2025-10-14')
+    expect(copyForMonth(source, '2025-09', '2025-10-14').date).toBe('2025-09-01')
+    expect(copyForMonth(source, '2025-10', '2025-10-14').repeats).toBe('monthly')
   })
 })

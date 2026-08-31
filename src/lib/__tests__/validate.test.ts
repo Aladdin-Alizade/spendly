@@ -22,6 +22,7 @@ const valid: TransactionInput = {
   description: 'Ərzaq alışı',
   amount: '45.20',
   note: '',
+  repeats: false,
 }
 
 describe('transaction validation', () => {
@@ -37,6 +38,7 @@ describe('transaction validation', () => {
       description: '',
       amount: '',
       note: '',
+      repeats: false,
     })
     expect(Object.keys(errors).sort()).toEqual([
       'amount',

@@ -41,6 +41,7 @@ behaviour, then write it the way the target codebase already writes things.
 | --- | --- |
 | `src/lib/types.ts` | `domain/Types.kt` |
 | `src/lib/calc.ts` | `domain/Calc.kt` |
+| `src/lib/csv.ts` | `domain/Csv.kt` |
 | `src/lib/analytics.ts` | `domain/Analytics.kt` |
 | `src/lib/savings.ts` | `domain/Savings.kt` |
 | `src/lib/categories.ts` | `domain/Categories.kt` |

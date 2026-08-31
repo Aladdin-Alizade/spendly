@@ -9,6 +9,8 @@ export interface TransactionInput {
   description: string
   amount: string
   note: string
+  /** Form flag; stored as `repeats: 'monthly'` when true. */
+  repeats: boolean
 }
 
 export type FieldErrors = Partial<Record<keyof TransactionInput, string>>

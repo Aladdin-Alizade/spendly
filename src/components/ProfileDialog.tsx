@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { formatAZN } from '../lib/money'
 import { formatMonth } from '../lib/dates'
 import { knownMonths } from '../lib/calc'
@@ -6,6 +6,7 @@ import { categoriesOfType } from '../lib/categories'
 import { totalHoldings } from '../lib/calc'
 import { useAuth } from '../store/AuthProvider'
 import { useFinance } from '../store/FinanceProvider'
+import { csvImportNotice } from '../lib/csv'
 import {
   MIN_PASSWORD_LENGTH,
   hasPasswordChangeErrors,
@@ -24,9 +25,11 @@ import type { SyncState } from '../lib/syncingRepository'
  */
 export function ProfileDialog({ onClose }: { onClose: () => void }) {
   const { status, user, signOut, changePassword } = useAuth()
-  const { data, sync, syncNow } = useFinance()
+  const { data, sync, syncNow, importCsv, exportCsv } = useFinance()
   const [copied, setCopied] = useState(false)
   const [confirmingSignOut, setConfirmingSignOut] = useState(false)
+  const [csvNotice, setCsvNotice] = useState<string | null>(null)
+  const csvInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -137,6 +140,47 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
               value={formatAZN(totalHoldings(data))}
             />
           </div>
+
+          <div className="profile-csv">
+            <button
+              type="button"
+              className="button"
+              onClick={() => {
+                const csv = exportCsv()
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+                const url = URL.createObjectURL(blob)
+                const link = document.createElement('a')
+                link.href = url
+                link.download = 'spendly-emeliyyatlar.csv'
+                link.click()
+                URL.revokeObjectURL(url)
+              }}
+            >
+              CSV ixrac et
+            </button>
+            <button
+              type="button"
+              className="button"
+              onClick={() => csvInputRef.current?.click()}
+            >
+              CSV idxal et
+            </button>
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                event.target.value = ''
+                if (!file) return
+                void file.text().then((text) => {
+                  setCsvNotice(csvImportNotice(importCsv(text)))
+                })
+              }}
+            />
+          </div>
+          {csvNotice && <p className="profile-csv-note">{csvNotice}</p>}
 
           {status === 'signed-in' && <PasswordChange onSubmit={changePassword} />}
 
