@@ -407,4 +407,41 @@ describe('signed rates', () => {
     expect(advice?.fact).toContain('20%')
     expect(advice?.fact).toMatch(/daha azını saxladınız/)
   })
+
+  it('does not offer a free share when the obligations exceed the income', () => {
+    // 327% committed was printing "227% free" — the magnitude of −227%. The two
+    // read as slices of one income, and they add up to more than five of them.
+    const data = build({
+      transactions: [income(M, 400)],
+      budgetLines: [
+        line({ month: '2026-07', description: 'Kirayə', planned: 1307 }),
+        line({ description: 'Kirayə', planned: 1307 }),
+      ],
+    })
+
+    const advice = all(budgetAdvice(data, M, TODAY)).find((a) => a.id === 'recurring')
+    expect(advice?.fact).toContain('327%')
+    expect(advice?.fact).not.toContain('227%')
+    // What is actually true: 907.00 ₼ of the plan has no income behind it.
+    expect(advice?.fact).toContain('907.00 ₼')
+    expect(advice?.priority).toBe('attention')
+  })
+
+  it('says income fell when income fell', () => {
+    // The gap widens when income drops too, and then "gəlir 30% artıb" is the
+    // opposite of what happened.
+    const months = ['2026-03', '2026-04', '2026-05', '2026-06', '2026-07', M]
+    const data = build({
+      transactions: [
+        ...months.slice(0, 3).map((m) => income(m, 1000)),
+        ...months.slice(3).map((m) => income(m, 700)),
+        ...months.slice(0, 3).map((m) => spend(m, 'Ərzaq', 1000)),
+        ...months.slice(3).map((m) => spend(m, 'Ərzaq', 1050)),
+      ],
+    })
+
+    const advice = all(budgetAdvice(data, M, TODAY)).find((a) => a.id === 'lifestyle')
+    expect(advice?.fact).toContain('gəlir isə 30% azalıb')
+    expect(advice?.fact).toContain('xərc 5% artıb')
+  })
 })

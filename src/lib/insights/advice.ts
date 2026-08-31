@@ -426,13 +426,18 @@ const lifestyle: Rule = ({ data, month, add, skip }) => {
   const gap = expenseGrowth - incomeGrowth
   if (gap < THRESHOLDS.lifestyleGap.value) return
 
+  // Either side can be negative — the gap widens just as well when income
+  // falls faster than spending. "Gəlir 30% artıb" for a 30% drop is a lie.
+  const moved = (growth: number) =>
+    growth < 0 ? `${percent(growth)} azalıb` : `${percent(growth)} artıb`
+
   add({
     id: 'lifestyle',
     method: 'lifestyle',
     priority: 'review',
-    fact: `Xərcləriniz gəlirinizdən sürətlə artır — son 3 ayda xərc ${percent(expenseGrowth)}, gəlir isə ${percent(incomeGrowth)} artıb.`,
+    fact: `Xərcinizlə gəliriniz arasındakı fərq açılır — son 3 ayda xərc ${moved(expenseGrowth)}, gəlir isə ${moved(incomeGrowth)}.`,
     suggestion:
-      'Gəlir artanda xərcin artması adi haldır, amma bu templə fərq açılır. Artımın hansı kateqoriyalardan gəldiyinə baxmağa dəyər.',
+      'Gəlir artanda xərcin artması adi haldır, amma bu templə iki rəqəm bir-birindən uzaqlaşır. Fərqin hansı kateqoriyalardan gəldiyinə baxmağa dəyər.',
     materiality: round2(expenseNow - expenseBefore),
   })
 }
@@ -505,11 +510,19 @@ const recurringBurden: Rule = ({ data, month, health, add, skip }) => {
   const share = total / health.income
   if (share < THRESHOLDS.recurringShare.value) return
 
+  // Past 100% there is no free share to report: 327% committed does not leave
+  // 227% free, it leaves a shortfall. The magnitude alone would print the two
+  // as if they were both slices of the same income.
+  const free = round2(health.income - total)
+
   add({
     id: 'recurring',
     method: 'recurring',
-    priority: 'review',
-    fact: `Gəlirinizin ${percent(share)}-i hər ay təkrarlanan öhdəliklərə bağlıdır — ${recurring.length} sətir, ${formatAZN(total)}. Sərbəst qalan hissə ${percent(1 - share)}-dir.`,
+    priority: free < 0 ? 'attention' : 'review',
+    fact:
+      free >= 0
+        ? `Gəlirinizin ${percent(share)}-i hər ay təkrarlanan öhdəliklərə bağlıdır — ${recurring.length} sətir, ${formatAZN(total)}. Sərbəst qalan hissə ${percent(1 - share)}-dir.`
+        : `Hər ay təkrarlanan öhdəlikləriniz gəlirinizdən çoxdur — ${recurring.length} sətir, ${formatAZN(total)}, yəni gəlirinizin ${percent(share)}-i. Sərbəst qalan heç nə yoxdur, əksinə ${formatAZN(-free)} çatmır.`,
     materiality: total,
     meter: { value: Math.min(share, 1), label: 'gəlirdəki payı' },
   })
