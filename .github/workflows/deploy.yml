@@ -32,6 +32,22 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+
+      # A site built without a project is a different app: no sign-in, no
+      # account, data in one browser only. That is a fine local build and a
+      # broken deploy, and it is silent — the first person to find out is
+      # whoever opens the page and finds no way to reach the data they have.
+      - name: Refuse to publish a build with no Supabase project
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY || secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::error::VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY are not set."
+            echo "Set them under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
       - run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
