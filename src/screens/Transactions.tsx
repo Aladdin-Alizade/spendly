@@ -1,18 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { EmptyState } from '../components/primitives'
 import { TransactionList } from '../components/TransactionList'
-import { formatAZN, formatSignedAZN } from '../lib/money'
+import { formatAZN, formatSignedAZN, sum } from '../lib/money'
 import { formatMonth } from '../lib/dates'
-import { sortTransactions, transactionsInMonth } from '../lib/calc'
-import { sum } from '../lib/money'
-import type { FinanceData, MonthKey, Transaction, TransactionType } from '../lib/types'
-
-type Filter = 'all' | TransactionType
+import {
+  filterTransactions,
+  sortTransactions,
+  transactionsInMonth,
+  usedCategories,
+  type TransactionTypeFilter,
+} from '../lib/calc'
+import type { FinanceData, MonthKey, Transaction } from '../lib/types'
 
 /**
- * The full log for a month. One filter only — type — because the month
- * switcher already handles the period and categories are shown on the
- * dashboard breakdown.
+ * The full log for a month. Type, category and a search query — the month
+ * switcher already handles the period.
  */
 export function Transactions({
   data,
@@ -25,15 +27,23 @@ export function Transactions({
   onSelect: (transaction: Transaction) => void
   onAdd: () => void
 }) {
-  const [filter, setFilter] = useState<Filter>('all')
+  const [type, setType] = useState<TransactionTypeFilter>('all')
+  const [category, setCategory] = useState('')
+  const [query, setQuery] = useState('')
 
   const all = sortTransactions(transactionsInMonth(data.transactions, month))
-  const visible = filter === 'all' ? all : all.filter((item) => item.type === filter)
+  const typed = filterTransactions(all, { type })
+  const categories = usedCategories(typed)
+  const visible = filterTransactions(all, { type, category, query })
+
+  useEffect(() => {
+    if (category && !categories.includes(category)) setCategory('')
+  }, [category, categories])
 
   // Adding income to expenses would be meaningless, so the unfiltered view
   // shows the net instead of a combined magnitude.
   const total =
-    filter === 'all'
+    type === 'all'
       ? sum(visible.map((item) => (item.type === 'income' ? item.amount : -item.amount)))
       : sum(visible.map((item) => item.amount))
 
@@ -57,13 +67,13 @@ export function Transactions({
     <section className="section">
       <div className="section-head">
         <div className="tabs">
-          {(['all', 'expense', 'income'] as Filter[]).map((option) => (
+          {(['all', 'expense', 'income'] as TransactionTypeFilter[]).map((option) => (
             <button
               key={option}
               type="button"
               className="tab"
-              aria-current={filter === option ? 'page' : undefined}
-              onClick={() => setFilter(option)}
+              aria-current={type === option ? 'page' : undefined}
+              onClick={() => setType(option)}
             >
               {option === 'all' ? 'Hamısı' : option === 'expense' ? 'Xərclər' : 'Gəlirlər'}
             </button>
@@ -71,15 +81,43 @@ export function Transactions({
         </div>
         <span style={{ fontSize: 13, color: 'var(--text-muted)' }} className="num">
           {visible.length} ·{' '}
-          {filter === 'all' ? formatSignedAZN(total) : formatAZN(total)}
+          {type === 'all' ? formatSignedAZN(total) : formatAZN(total)}
         </span>
+      </div>
+
+      <div className="tx-filters">
+        <input
+          className="input"
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Axtar"
+          aria-label="Əməliyyatlarda axtar"
+        />
+        {categories.length > 0 && (
+          <div className="select-wrap">
+            <select
+              className="select"
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+              aria-label="Kateqoriya"
+            >
+              <option value="">Bütün kateqoriyalar</option>
+              {categories.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {visible.length === 0 ? (
         <div className="card">
           <EmptyState
             title="Uyğun nəticə yoxdur"
-            body={`${formatMonth(month)} üçün ${filter === 'income' ? 'gəlir' : 'xərc'} qeydə alınmayıb.`}
+            body={emptyFilterBody(month, type, category, query)}
           />
         </div>
       ) : (
@@ -87,4 +125,14 @@ export function Transactions({
       )}
     </section>
   )
+}
+
+function emptyFilterBody(
+  month: MonthKey,
+  type: TransactionTypeFilter,
+  category: string,
+  query: string,
+): string {
+  if (query.trim() || category) return 'Bu filtrlərə uyğun əməliyyat yoxdur.'
+  return `${formatMonth(month)} üçün ${type === 'income' ? 'gəlir' : 'xərc'} qeydə alınmayıb.`
 }

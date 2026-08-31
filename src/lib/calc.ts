@@ -94,6 +94,45 @@ export function sortTransactions(transactions: Transaction[]): Transaction[] {
   })
 }
 
+export type TransactionTypeFilter = 'all' | TransactionType
+
+/**
+ * Narrow a month's log. Type and category are exact; the query is a
+ * case-insensitive substring of the description, category or note — so
+ * typing a category name finds those rows without opening the picker.
+ */
+export function filterTransactions(
+  transactions: Transaction[],
+  filter: {
+    type?: TransactionTypeFilter
+    category?: string
+    query?: string
+  } = {},
+): Transaction[] {
+  const type = filter.type ?? 'all'
+  const category = filter.category?.trim() ?? ''
+  const query = (filter.query ?? '').trim().toLocaleLowerCase('az')
+
+  return transactions.filter((item) => {
+    if (type !== 'all' && item.type !== type) return false
+    if (category && item.category !== category) return false
+    if (query) {
+      const blob = [item.description, item.category, item.note ?? '']
+        .join('\n')
+        .toLocaleLowerCase('az')
+      if (!blob.includes(query)) return false
+    }
+    return true
+  })
+}
+
+/** Distinct category names in the list, in Azerbaijani order. */
+export function usedCategories(transactions: Transaction[]): string[] {
+  return [...new Set(transactions.map((item) => item.category).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, 'az'),
+  )
+}
+
 export function budgetLinesInMonth(
   budgetLines: BudgetLine[],
   month: MonthKey,

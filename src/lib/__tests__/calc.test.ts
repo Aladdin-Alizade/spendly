@@ -7,8 +7,10 @@ import {
   monthlyTrend,
   plannedExpenses,
   runningBalance,
+  filterTransactions,
   sortTransactions,
   summarise,
+  usedCategories,
 } from '../calc'
 import { sheetCategories, sheetPlan } from './fixtures'
 import { formatAZN, formatSignedAZN, parseAmount, round2, sum } from '../money'
@@ -465,5 +467,68 @@ describe('migrateIncomePlan', () => {
     expect(plannedIncomeOf({ month: M, amounts: { a: 100, b: 250, c: 5 } })).toBe(355)
     expect(plannedIncomeOf({ month: M, amounts: {} })).toBe(0)
     expect(plannedIncomeOf(undefined)).toBe(0)
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * The transactions screen's filters
+ * ------------------------------------------------------------------ */
+
+describe('filterTransactions', () => {
+  const rows = [
+    tx({ id: 'e1', type: 'expense', category: 'Ərzaq', description: 'Market', note: 'Lidl' }),
+    tx({ id: 'e2', type: 'expense', category: 'Nəqliyyat', description: 'Metro' }),
+    tx({ id: 'i1', type: 'income', category: 'Maaş', description: 'Oktyabr maaşı' }),
+  ]
+
+  it('keeps every row when nothing is set', () => {
+    expect(filterTransactions(rows)).toHaveLength(3)
+  })
+
+  it('narrows by type', () => {
+    expect(filterTransactions(rows, { type: 'expense' }).map((item) => item.id)).toEqual([
+      'e1',
+      'e2',
+    ])
+    expect(filterTransactions(rows, { type: 'income' }).map((item) => item.id)).toEqual(['i1'])
+  })
+
+  it('narrows by category', () => {
+    expect(filterTransactions(rows, { category: 'Ərzaq' }).map((item) => item.id)).toEqual(['e1'])
+  })
+
+  it('matches a query against description, category and note', () => {
+    expect(filterTransactions(rows, { query: 'metro' }).map((item) => item.id)).toEqual(['e2'])
+    expect(filterTransactions(rows, { query: 'ərzaq' }).map((item) => item.id)).toEqual(['e1'])
+    expect(filterTransactions(rows, { query: 'lidl' }).map((item) => item.id)).toEqual(['e1'])
+  })
+
+  it('trims the query and ignores surrounding space', () => {
+    expect(filterTransactions(rows, { query: '  Metro  ' }).map((item) => item.id)).toEqual(['e2'])
+  })
+
+  it('combines type, category and query', () => {
+    expect(
+      filterTransactions(rows, { type: 'expense', category: 'Ərzaq', query: 'lidl' }).map(
+        (item) => item.id,
+      ),
+    ).toEqual(['e1'])
+    expect(
+      filterTransactions(rows, { type: 'income', query: 'lidl' }),
+    ).toEqual([])
+  })
+})
+
+describe('usedCategories', () => {
+  it('lists each name once, dropping blanks', () => {
+    const names = usedCategories([
+      tx({ category: 'Ərzaq' }),
+      tx({ category: 'Nəqliyyat' }),
+      tx({ category: 'Ərzaq' }),
+      tx({ category: '' }),
+    ])
+    expect(names).toHaveLength(2)
+    expect(names).toContain('Ərzaq')
+    expect(names).toContain('Nəqliyyat')
   })
 })
