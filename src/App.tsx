@@ -44,6 +44,7 @@ export function App() {
   const [screen, setScreen] = useState<Screen>('dashboard')
   const [month, setMonth] = useState<MonthKey>(currentMonth())
   const [editing, setEditing] = useState<Transaction | 'new' | null>(null)
+  const [draft, setDraft] = useState<Omit<Transaction, 'id'> | null>(null)
   const [savingsDialog, setSavingsDialog] = useState<'entry' | 'pot' | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
 
@@ -59,10 +60,16 @@ export function App() {
    */
   const openNew = () => {
     if (screen !== 'savings') {
+      setDraft(null)
       setEditing('new')
       return
     }
     setSavingsDialog(data.savingsPots.length > 0 ? 'entry' : 'pot')
+  }
+
+  const closeEditor = () => {
+    setEditing(null)
+    setDraft(null)
   }
 
   const addLabel = screen === 'savings' ? 'Yığım hərəkəti əlavə et' : 'Əməliyyat əlavə et'
@@ -124,7 +131,10 @@ export function App() {
             month={month}
             onSelect={setEditing}
             onAdd={openNew}
-            onLogRepeat={addTransaction}
+            onLogRepeat={(values) => {
+              setDraft(values)
+              setEditing('new')
+            }}
           />
         )}
         {screen === 'budget' && <Budget data={data} month={month} />}
@@ -156,6 +166,7 @@ export function App() {
         <TransactionDialog
           transaction={editing === 'new' ? null : editing}
           defaultDate={defaultDate}
+          defaults={editing === 'new' ? draft ?? undefined : undefined}
           onSave={(values) => {
             if (editing === 'new') {
               addTransaction(values)
@@ -165,17 +176,17 @@ export function App() {
             // Follow the money: if it landed in another month, switch to it so
             // the user sees the effect of what they just saved.
             setMonth(monthOf(values.date))
-            setEditing(null)
+            closeEditor()
           }}
           onDelete={
             editing === 'new'
               ? undefined
               : () => {
                   removeTransaction(editing.id)
-                  setEditing(null)
+                  closeEditor()
                 }
           }
-          onClose={() => setEditing(null)}
+          onClose={closeEditor}
         />
       )}
     </div>

@@ -14,35 +14,42 @@ import type { Transaction, TransactionType } from '../lib/types'
 export function TransactionDialog({
   transaction,
   defaultDate,
+  defaults,
   onSave,
   onDelete,
   onClose,
 }: {
   transaction: Transaction | null
   defaultDate: string
+  /** Prefill for a new row — a monthly repeat offered this month. */
+  defaults?: Omit<Transaction, 'id'>
   onSave: (values: Omit<Transaction, 'id'>) => void
   onDelete?: () => void
   onClose: () => void
 }) {
   const isEditing = transaction !== null
   const { data } = useFinance()
+  const seed = transaction ?? defaults
 
   const expenseCategories = categoryNames(data, 'expense')
   const incomeCategories = categoryNames(data, 'income')
 
   const [input, setInput] = useState<TransactionInput>(() => ({
-    date: transaction?.date ?? defaultDate,
-    type: transaction?.type ?? 'expense',
-    category: transaction?.category ?? categoryNames(data, 'expense')[0] ?? '',
-    description: transaction?.description ?? '',
-    amount: transaction ? String(transaction.amount) : '',
-    note: transaction?.note ?? '',
-    repeats: transaction?.repeats === 'monthly',
+    date: seed?.date ?? defaultDate,
+    type: seed?.type ?? 'expense',
+    category:
+      seed?.category ??
+      categoryNames(data, seed?.type ?? 'expense')[0] ??
+      '',
+    description: seed?.description ?? '',
+    amount: seed ? String(seed.amount) : '',
+    note: seed?.note ?? '',
+    repeats: seed?.repeats === 'monthly',
   }))
   const [showErrors, setShowErrors] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  /* An edit already has its category; filling from memory would overwrite it. */
-  const [categoryTouched, setCategoryTouched] = useState(isEditing)
+  /* An edit, or a prefilled repeat, already has its category. */
+  const [categoryTouched, setCategoryTouched] = useState(isEditing || Boolean(defaults))
 
   const categories = input.type === 'income' ? incomeCategories : expenseCategories
 
