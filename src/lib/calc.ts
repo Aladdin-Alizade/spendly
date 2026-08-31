@@ -20,6 +20,7 @@ import type {
   FinanceData,
   MonthKey,
   Transaction,
+  TransactionType,
 } from './types'
 
 export interface MonthSummary {
