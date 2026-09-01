@@ -29,6 +29,7 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false)
   const [confirmingSignOut, setConfirmingSignOut] = useState(false)
   const [csvNotice, setCsvNotice] = useState<string | null>(null)
+  const [importDate, setImportDate] = useState('')
   const csvInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -142,29 +143,45 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
           </div>
 
           <div className="profile-csv">
-            <button
-              type="button"
-              className="button"
-              onClick={() => {
-                const csv = exportCsv()
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-                const url = URL.createObjectURL(blob)
-                const link = document.createElement('a')
-                link.href = url
-                link.download = 'spendly-emeliyyatlar.csv'
-                link.click()
-                URL.revokeObjectURL(url)
-              }}
-            >
-              CSV ixrac et
-            </button>
-            <button
-              type="button"
-              className="button"
-              onClick={() => csvInputRef.current?.click()}
-            >
-              CSV idxal et
-            </button>
+            <div className="field">
+              <label className="field-label" htmlFor="csv-date">
+                Tarix{' '}
+                <span style={{ color: 'var(--text-faint)' }}>· istəyə bağlı</span>
+              </label>
+              <input
+                id="csv-date"
+                className="input"
+                type="date"
+                max="2999-12-31"
+                value={importDate}
+                onChange={(event) => setImportDate(event.target.value)}
+              />
+            </div>
+            <div className="profile-csv-actions">
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  const csv = exportCsv()
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+                  const url = URL.createObjectURL(blob)
+                  const link = document.createElement('a')
+                  link.href = url
+                  link.download = 'spendly-emeliyyatlar.csv'
+                  link.click()
+                  URL.revokeObjectURL(url)
+                }}
+              >
+                CSV ixrac et
+              </button>
+              <button
+                type="button"
+                className="button"
+                onClick={() => csvInputRef.current?.click()}
+              >
+                CSV idxal et
+              </button>
+            </div>
             <input
               ref={csvInputRef}
               type="file"
@@ -175,12 +192,16 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
                 event.target.value = ''
                 if (!file) return
                 void file.text().then((text) => {
-                  setCsvNotice(csvImportNotice(importCsv(text)))
+                  setCsvNotice(
+                    csvImportNotice(importCsv(text, importDate.trim() || undefined)),
+                  )
                 })
               }}
             />
+            <p className="profile-csv-note">
+              {csvNotice ?? 'Boşdursa fayldakı tarix qalır.'}
+            </p>
           </div>
-          {csvNotice && <p className="profile-csv-note">{csvNotice}</p>}
 
           {status === 'signed-in' && <PasswordChange onSubmit={changePassword} />}
 

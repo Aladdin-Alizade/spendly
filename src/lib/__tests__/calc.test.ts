@@ -19,7 +19,7 @@ import {
 } from '../calc'
 import { sheetCategories, sheetPlan } from './fixtures'
 import { formatAZN, formatSignedAZN, parseAmount, round2, sum } from '../money'
-import { isValidDate, monthOf, shiftMonth } from '../dates'
+import { isValidDate, monthOf, shiftMonth, formatClock, isRecordedAt } from '../dates'
 import { migrateIncomePlan, plannedIncomeOf } from '../types'
 import type { FinanceData, Transaction } from '../types'
 
@@ -610,6 +610,13 @@ describe('monthly repeats', () => {
     expect(copyForMonth(source, '2025-10', '2025-10-14').date).toBe('2025-10-14')
     expect(copyForMonth(source, '2025-09', '2025-10-14').date).toBe('2025-09-01')
     expect(copyForMonth(source, '2025-10', '2025-10-14').repeats).toBe('monthly')
+    expect(
+      copyForMonth(
+        { ...source, recordedAt: '2025-09-03T08:00:00.000Z' },
+        '2025-10',
+        '2025-10-14',
+      ).recordedAt,
+    ).toBeUndefined()
   })
 })
 
@@ -630,5 +637,21 @@ describe('budget line picker', () => {
 
   it('hides other months, so October\'s rent is not offered in September', () => {
     expect(budgetLinesForDate(sheetPlan(M), '2025-09-30')).toEqual([])
+  })
+})
+
+describe('recorded clock', () => {
+  const instant = '2026-09-01T15:41:00.000Z'
+
+  it('reads the same instant in Baku and New York as different local times', () => {
+    expect(formatClock(instant, 'Asia/Baku')).toBe('19:41')
+    expect(formatClock(instant, 'America/New_York')).toBe('11:41')
+  })
+
+  it('rejects a string that is not an instant', () => {
+    expect(isRecordedAt(instant)).toBe(true)
+    expect(isRecordedAt('2026-09-01')).toBe(false)
+    expect(isRecordedAt('not a date')).toBe(false)
+    expect(isRecordedAt(undefined)).toBe(false)
   })
 })

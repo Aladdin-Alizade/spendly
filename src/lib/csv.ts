@@ -8,7 +8,7 @@
  */
 
 import { addCategory } from './categories'
-import { isValidDate } from './dates'
+import { isValidDate, nowISO } from './dates'
 import { parseAmount, round2 } from './money'
 import type { FinanceData, RepeatKind, Transaction, TransactionType } from './types'
 import { isRepeatKind } from './types'
@@ -178,7 +178,10 @@ export function exportTransactionsCsv(transactions: Transaction[]): string {
   return `${BOM}${lines.join('\r\n')}\r\n`
 }
 
-export function parseTransactionsCsv(text: string): CsvParseResult {
+export function parseTransactionsCsv(
+  text: string,
+  dateOverride?: string,
+): CsvParseResult {
   const source = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
   const rawLines = source.split('\n')
   const lines = rawLines.map((line, index) => ({ line, number: index + 1 }))
@@ -201,11 +204,24 @@ export function parseTransactionsCsv(text: string): CsvParseResult {
   const noteAt = indexOf('note')
   const repeatsAt = indexOf('repeats')
 
-  if (dateAt < 0 || typeAt < 0 || categoryAt < 0 || descriptionAt < 0 || amountAt < 0) {
+  const stamp = dateOverride?.trim() || undefined
+  if (stamp !== undefined && !isValidDate(stamp)) {
+    return { rows: [], errors: ['Belə tarix yoxdur.'] }
+  }
+
+  if (
+    typeAt < 0 ||
+    categoryAt < 0 ||
+    descriptionAt < 0 ||
+    amountAt < 0 ||
+    (stamp === undefined && dateAt < 0)
+  ) {
     return {
       rows: [],
       errors: [
-        'İlk sətirdə sütun adları olmalıdır (tarix, tip, kateqoriya, təsvir, məbləğ).',
+        stamp === undefined
+          ? 'İlk sətirdə sütun adları olmalıdır (tarix, tip, kateqoriya, təsvir, məbləğ).'
+          : 'İlk sətirdə sütun adları olmalıdır (tip, kateqoriya, təsvir, məbləğ).',
       ],
     }
   }
@@ -217,7 +233,8 @@ export function parseTransactionsCsv(text: string): CsvParseResult {
     const cells = splitLine(line, delimiter)
     if (cells.every((cell) => cell.trim() === '')) continue
 
-    const date = (cells[dateAt] ?? '').trim()
+    const fileDate = dateAt >= 0 ? (cells[dateAt] ?? '').trim() : ''
+    const date = stamp ?? fileDate
     const type = parseType(cells[typeAt] ?? '')
     const category = (cells[categoryAt] ?? '').trim()
     const description = (cells[descriptionAt] ?? '').trim()
@@ -226,8 +243,10 @@ export function parseTransactionsCsv(text: string): CsvParseResult {
     const repeats = repeatsAt >= 0 ? parseRepeats(cells[repeatsAt] ?? '') : undefined
 
     const problems: string[] = []
-    if (!date) problems.push('tarix seçin')
-    else if (!isValidDate(date)) problems.push('belə tarix yoxdur')
+    if (stamp === undefined) {
+      if (!date) problems.push('tarix seçin')
+      else if (!isValidDate(date)) problems.push('belə tarix yoxdur')
+    }
     if (!type) problems.push('tip xərc və ya gəlir olmalıdır')
     if (!category) problems.push('kateqoriya seçin')
     if (!description) problems.push('qısa təsvir yazın')
@@ -297,6 +316,7 @@ export function applyCsvImport(
       amount: round2(row.amount),
       note: row.note,
       repeats: row.repeats,
+      recordedAt: nowISO(),
     }
     next = { ...next, transactions: [...next.transactions, transaction] }
     added += 1
@@ -309,8 +329,9 @@ export function importTransactionsFromCsv(
   data: FinanceData,
   text: string,
   nextId: () => string,
+  dateOverride?: string,
 ): CsvImportSummary & { data: FinanceData } {
-  const parsed = parseTransactionsCsv(text)
+  const parsed = parseTransactionsCsv(text, dateOverride)
   if (parsed.rows.length === 0) {
     return {
       data,

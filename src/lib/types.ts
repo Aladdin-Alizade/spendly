@@ -134,6 +134,12 @@ export interface Transaction {
   note?: string
   /** Absent means it is a one-off. Nothing is inserted automatically. */
   repeats?: RepeatKind
+  /**
+   * When this row was written, as a UTC instant. The calendar `date` is still
+   * the day the money moved; this is the clock of the person who logged it,
+   * so a reader in another timezone sees their own local time.
+   */
+  recordedAt?: string
 }
 
 /** One planned expense row of 'Aylıq rasxod' (columns B, C, D). */
@@ -144,6 +150,11 @@ export interface BudgetLine {
   category: ExpenseCategory
   /** Column D, "Запланированные затраты". Always >= 0. */
   planned: number
+  /**
+   * A personal tick, not a figure. It does not change planned or actual
+   * amounts — it is only so the plan can be marked off by eye.
+   */
+  done?: boolean
 }
 
 /**

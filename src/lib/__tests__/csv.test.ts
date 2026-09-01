@@ -100,4 +100,25 @@ describe('transaction csv', () => {
       csvImportNotice({ added: 2, skipped: 1, categoriesCreated: 1, errors: [] }),
     ).toBe('2 əməliyyat əlavə olundu, 1 dublikat keçildi, 1 kateqoriya yaradıldı.')
   })
+
+  it('stamps every row with a chosen date, even when the file date is unreadable', () => {
+    const parsed = parseTransactionsCsv(
+      'tarix,tip,kateqoriya,təsvir,məbləğ\nnot-a-date,xərc,Ərzaq,Market,12.50\n',
+      '2025-11-02',
+    )
+    expect(parsed.errors).toEqual([])
+    expect(parsed.rows[0]?.date).toBe('2025-11-02')
+  })
+
+  it('lets the date column go when a date was chosen', () => {
+    const parsed = parseTransactionsCsv(
+      'tip,kateqoriya,təsvir,məbləğ\nxərc,Ərzaq,Market,12.50\n',
+      '2025-11-02',
+    )
+    expect(parsed.rows[0]).toMatchObject({
+      date: '2025-11-02',
+      description: 'Market',
+      amount: 12.5,
+    })
+  })
 })

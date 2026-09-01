@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { formatAZN, sum } from '../lib/money'
-import { formatDayShort } from '../lib/dates'
 import { sortTransactions } from '../lib/calc'
+import { RowDate } from './primitives'
 import type { Transaction } from '../lib/types'
 
 /**
@@ -64,7 +64,7 @@ export function DetailDialog({
               key={transaction.id}
               onClick={() => onSelect(transaction)}
             >
-              <span className="row-date">{formatDayShort(transaction.date)}</span>
+              <RowDate transaction={transaction} />
               <span className="row-main">
                 <span className="row-title">{transaction.description}</span>
                 <span className="row-meta">

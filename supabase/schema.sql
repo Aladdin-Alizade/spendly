@@ -27,7 +27,9 @@ create table if not exists public.transactions (
   amount      numeric(14, 2) not null check (amount > 0),
   note        text,
   -- A monthly repeat is an offer on the next month's log, not an insert.
-  repeats     text check (repeats is null or repeats in ('monthly')),
+      repeats     text check (repeats is null or repeats in ('monthly')),
+  -- When the row was written. Distinct from `date`, which is the calendar
+  -- day the money moved. Stored as timestamptz so every timezone reads it.
   created_at  timestamptz not null default now(),
   -- Ids are minted in the browser and are only ever unique to one person.
   -- Accounts made while the app handed out a starting set of categories and a
@@ -46,6 +48,9 @@ create table if not exists public.budget_lines (
   category    text not null,
   -- Zero is valid: the sheet has tracked-but-unbudgeted lines.
   planned     numeric(14, 2) not null default 0 check (planned >= 0),
+  -- A personal tick on the plan. It is not an amount and must not be one:
+  -- planned and actual stay derived from money, this is only "I did this".
+  done        boolean not null default false,
   created_at  timestamptz not null default now(),
   -- Keyed by owner as well, for the reason given on `transactions`.
   primary key (user_id, id)
@@ -217,6 +222,10 @@ begin
 exception
   when duplicate_object then null;
 end $$;
+
+-- Brings a project created before plan lines could be ticked off up to date.
+alter table public.budget_lines
+  add column if not exists done boolean not null default false;
 
 -- Every query the app makes is "my rows, for these months".
 create index if not exists transactions_user_date_idx

@@ -10,6 +10,7 @@
  */
 
 import { supabase, currentUserId } from './supabase'
+import { isRecordedAt } from './dates'
 import {
   isCategoryKind,
   isSavingsDirection,
@@ -245,6 +246,7 @@ export class SupabaseRepository implements FinanceRepository {
       amount: t.amount,
       note: t.note ?? null,
       repeats: t.repeats ?? null,
+      ...(t.recordedAt ? { created_at: t.recordedAt } : {}),
     }))
     send('transactions', txChanged.upserts, BY_OWNER)
     drop('transactions', 'id', txChanged.removed)
@@ -257,6 +259,7 @@ export class SupabaseRepository implements FinanceRepository {
       description: l.description,
       category: l.category,
       planned: l.planned,
+      done: Boolean(l.done),
     }))
     send('budget_lines', lineChanged.upserts, BY_OWNER)
     drop('budget_lines', 'id', lineChanged.removed)
@@ -458,6 +461,7 @@ function toTransaction(row: Row): Transaction {
     amount: num(row.amount),
     note: row.note ? String(row.note) : undefined,
     repeats: row.repeats === 'monthly' ? 'monthly' : undefined,
+    recordedAt: isRecordedAt(row.created_at) ? String(row.created_at) : undefined,
   }
 }
 
@@ -468,6 +472,7 @@ function toBudgetLine(row: Row): BudgetLine {
     description: String(row.description),
     category: migrateCategory(String(row.category)) as BudgetLine['category'],
     planned: num(row.planned),
+    done: Boolean(row.done),
   }
 }
 

@@ -98,6 +98,33 @@ export function isValidDate(value: string): value is DateKey {
   return day <= daysInMonth
 }
 
+/** UTC instant of now, `2026-09-01T07:41:00.000Z`. */
+export function nowISO(): string {
+  return new Date().toISOString()
+}
+
+/** True for a string `Date` can read as an instant (not a calendar day). */
+export function isRecordedAt(value: unknown): value is string {
+  if (typeof value !== 'string' || !value.includes('T')) return false
+  return !Number.isNaN(new Date(value).getTime())
+}
+
+/**
+ * Clock time of an instant in a timezone. Omit `timeZone` to use the
+ * reader's own — that is how Baku and New York each see the same row.
+ */
+export function formatClock(iso: string, timeZone?: string): string {
+  const when = new Date(iso)
+  if (Number.isNaN(when.getTime())) return ''
+  return new Intl.DateTimeFormat('az', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    hourCycle: 'h23',
+    ...(timeZone ? { timeZone } : {}),
+  }).format(when)
+}
+
 function pad(value: number): string {
   return String(value).padStart(2, '0')
 }

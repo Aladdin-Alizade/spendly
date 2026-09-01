@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { EmptyState, Section } from '../components/primitives'
 import { BudgetLineDialog } from '../components/BudgetLineDialog'
 import { PlannedAmountsDialog } from '../components/PlannedAmountsDialog'
@@ -26,6 +26,8 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
     applyTemplate,
     upsertBudgetLine,
     removeBudgetLine,
+    setBudgetLineDone,
+    setBudgetLinesDone,
     setIncomePlan,
     setSavingsPlan,
     clearMonthPlan,
@@ -215,6 +217,7 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
             ) : (
               <div className="card rows">
                 <div className="budget-head">
+                  <span />
                   <span>Kateqoriya</span>
                   <span className="budget-cell-num">Plan</span>
                   <span className="budget-cell-num">Faktiki</span>
@@ -224,6 +227,20 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
                 {groups.map((group) => (
                   <div key={group.category}>
                     <div className="budget-group">
+                      {group.lines.length > 0 ? (
+                        <BudgetCheck
+                          lines={group.lines}
+                          label={`${group.category} — hamısı`}
+                          onToggle={(done) =>
+                            setBudgetLinesDone(
+                              group.lines.map((line) => line.id),
+                              done,
+                            )
+                          }
+                        />
+                      ) : (
+                        <span />
+                      )}
                       <span className="budget-group-name">{group.category}</span>
                       <span className="budget-cell-num num">
                         {formatAZN(group.planned)}
@@ -244,17 +261,23 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
                     </div>
 
                     {group.lines.map((line) => (
-                      <button
-                        key={line.id}
-                        type="button"
-                        className="budget-line row"
-                        onClick={() => setEditing(line)}
-                      >
-                        <span className="budget-line-name">{line.description}</span>
-                        <span className="budget-cell-num num">
-                          {formatAZN(line.planned)}
-                        </span>
-                      </button>
+                      <div key={line.id} className="budget-line">
+                        <BudgetCheck
+                          lines={[line]}
+                          label={line.description}
+                          onToggle={(done) => setBudgetLineDone(line.id, done)}
+                        />
+                        <button
+                          type="button"
+                          className="budget-line-open"
+                          onClick={() => setEditing(line)}
+                        >
+                          <span className="budget-line-name">{line.description}</span>
+                          <span className="budget-cell-num num">
+                            {formatAZN(line.planned)}
+                          </span>
+                        </button>
+                      </div>
                     ))}
 
                     {group.lines.length === 0 && (
@@ -395,6 +418,38 @@ export function Budget({ data, month }: { data: FinanceData; month: MonthKey }) 
         />
       )}
     </>
+  )
+}
+
+/**
+ * A tick on the plan. It is not money — toggling it changes nothing that
+ * is added up. The category box turns every line under it on or off.
+ */
+function BudgetCheck({
+  lines,
+  label,
+  onToggle,
+}: {
+  lines: BudgetLine[]
+  label: string
+  onToggle: (done: boolean) => void
+}) {
+  const all = lines.length > 0 && lines.every((line) => line.done)
+  const some = lines.some((line) => line.done)
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = some && !all
+  }, [some, all])
+
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      className="budget-check"
+      checked={all}
+      aria-label={label}
+      onChange={() => onToggle(!all)}
+    />
   )
 }
 

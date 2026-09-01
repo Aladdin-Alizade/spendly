@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Panel, EmptyState } from '../components/primitives'
+import { Panel, EmptyState, RowDate } from '../components/primitives'
 import { FlowChart } from '../components/charts/FlowChart'
 import { RankedBars } from '../components/charts/RankedBars'
 import { PlanBars } from '../components/charts/PlanBars'
@@ -621,7 +621,7 @@ export function Dashboard({
                   key={transaction.id}
                   onClick={() => onSelectTransaction(transaction)}
                 >
-                  <span className="row-date">{formatDayShort(transaction.date)}</span>
+                  <RowDate transaction={transaction} />
                   <span className="row-main">
                     <span className="row-title">{transaction.description}</span>
                     <span className="row-meta">{transaction.category}</span>

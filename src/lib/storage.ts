@@ -9,6 +9,7 @@
  */
 
 import { categoriesFromData } from './categories'
+import { isRecordedAt } from './dates'
 import {
   isCategoryKind,
   isSavingsDirection,
@@ -83,12 +84,16 @@ export function normaliseData(value: unknown): FinanceData {
           ...transaction,
           category: migrateCategory(transaction.category) as Category,
           repeats: isRepeatKind(transaction.repeats) ? transaction.repeats : undefined,
+          recordedAt: isRecordedAt(transaction.recordedAt)
+            ? transaction.recordedAt
+            : undefined,
         }))
       : [],
     budgetLines: Array.isArray(data.budgetLines)
       ? data.budgetLines.map((line: BudgetLine) => ({
           ...line,
           category: migrateCategory(line.category) as BudgetLine['category'],
+          done: Boolean(line.done),
         }))
       : [],
     incomePlans: Array.isArray(data.incomePlans)

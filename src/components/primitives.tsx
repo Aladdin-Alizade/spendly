@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { formatClock, formatDayShort } from '../lib/dates'
+import type { Transaction } from '../lib/types'
 
 /** A titled block on the list screens, where content is one card deep. */
 export function Section({
@@ -67,6 +69,17 @@ export function EmptyState({
       <p className="empty-body">{body}</p>
       {action}
     </div>
+  )
+}
+
+/** Calendar day of the money, plus the clock it was written — in this reader's timezone. */
+export function RowDate({ transaction }: { transaction: Transaction }) {
+  const clock = transaction.recordedAt ? formatClock(transaction.recordedAt) : ''
+  return (
+    <span className="row-date">
+      {formatDayShort(transaction.date)}
+      {clock ? <span className="row-time">{clock}</span> : null}
+    </span>
   )
 }
 

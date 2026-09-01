@@ -1,5 +1,5 @@
 import { formatAZN } from '../lib/money'
-import { formatDayShort } from '../lib/dates'
+import { RowDate } from './primitives'
 import type { Transaction } from '../lib/types'
 
 export function TransactionList({
@@ -20,7 +20,7 @@ export function TransactionList({
             className="row"
             onClick={() => onSelect(transaction)}
           >
-            <span className="row-date">{formatDayShort(transaction.date)}</span>
+            <RowDate transaction={transaction} />
             <span className="row-main">
               <span className="row-title">{transaction.description}</span>
               <span className="row-meta">

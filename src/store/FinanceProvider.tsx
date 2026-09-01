@@ -11,6 +11,7 @@ import type { ReactNode } from 'react'
 import { LocalStorageRepository, emptyData } from '../lib/storage'
 import type { FinanceRepository } from '../lib/storage'
 import { round2 } from '../lib/money'
+import { nowISO } from '../lib/dates'
 import {
   exportTransactionsCsv,
   importTransactionsFromCsv,
@@ -80,6 +81,10 @@ interface FinanceContextValue {
   removeCategory(id: string, reassignTo?: string): void
   /** Copy the recurring plan into a month that has none yet. */
   applyTemplate(month: MonthKey): void
+  /** Tick or untick one plan row. Touches no amount. */
+  setBudgetLineDone(id: string, done: boolean): void
+  /** Tick or untick several plan rows at once — the category toggle. */
+  setBudgetLinesDone(ids: string[], done: boolean): void
   addSavingsPot(name: string, target?: number): void
   /** Renames the pot and every entry that named it, in one change. */
   renameSavingsPot(id: string, name: string): void
@@ -94,7 +99,7 @@ interface FinanceContextValue {
   /** Turn savings recorded the old way — as spending into a category marked
    *  `saving` — into pot deposits. The expenses go, so nothing counts twice. */
   convertSavingsFromTransactions(): void
-  importCsv(text: string): CsvImportSummary
+  importCsv(text: string, date?: string): CsvImportSummary
   exportCsv(): string
   /** Delete every transaction, plan and budget line. Not reversible. */
   resetAll(): void
@@ -239,7 +244,12 @@ export function FinanceProvider({
           ...previous,
           transactions: [
             ...previous.transactions,
-            { ...transaction, id: nextId(), amount: round2(transaction.amount) },
+            {
+              ...transaction,
+              id: nextId(),
+              amount: round2(transaction.amount),
+              recordedAt: transaction.recordedAt ?? nowISO(),
+            },
           ],
         }))
       },
@@ -249,7 +259,12 @@ export function FinanceProvider({
           ...previous,
           transactions: previous.transactions.map((transaction) =>
             transaction.id === id
-              ? { ...patch, id, amount: round2(patch.amount) }
+              ? {
+                  ...patch,
+                  id,
+                  amount: round2(patch.amount),
+                  recordedAt: transaction.recordedAt ?? patch.recordedAt,
+                }
               : transaction,
           ),
         }))
@@ -291,6 +306,25 @@ export function FinanceProvider({
         commit((previous) => ({
           ...previous,
           budgetLines: previous.budgetLines.filter((line) => line.id !== id),
+        }))
+      },
+
+      setBudgetLineDone(id, done) {
+        commit((previous) => ({
+          ...previous,
+          budgetLines: previous.budgetLines.map((line) =>
+            line.id === id ? { ...line, done } : line,
+          ),
+        }))
+      },
+
+      setBudgetLinesDone(ids, done) {
+        const wanted = new Set(ids)
+        commit((previous) => ({
+          ...previous,
+          budgetLines: previous.budgetLines.map((line) =>
+            wanted.has(line.id) ? { ...line, done } : line,
+          ),
         }))
       },
 
@@ -372,7 +406,7 @@ export function FinanceProvider({
 
           const lines = previous.budgetLines
             .filter((line) => line.month === source)
-            .map((line) => ({ ...line, id: nextId(), month }))
+            .map((line) => ({ ...line, id: nextId(), month, done: false }))
 
           const priorPlan = previous.incomePlans.find((plan) => plan.month === source)
 
@@ -451,7 +485,7 @@ export function FinanceProvider({
         commit((previous) => convertSavingTransactions(previous, nextId))
       },
 
-      importCsv(text) {
+      importCsv(text, date) {
         let summary: CsvImportSummary = {
           added: 0,
           skipped: 0,
@@ -459,7 +493,7 @@ export function FinanceProvider({
           errors: ['Faylda əməliyyat yoxdur.'],
         }
         commit((previous) => {
-          const result = importTransactionsFromCsv(previous, text, nextId)
+          const result = importTransactionsFromCsv(previous, text, nextId, date)
           summary = {
             added: result.added,
             skipped: result.skipped,
