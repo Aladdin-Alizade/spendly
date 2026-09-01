@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   actualExpenses,
   budgetGroups,
+  budgetLinesForDate,
   categoryTotals,
   copyForMonth,
   descriptionSuggestions,
@@ -609,5 +610,25 @@ describe('monthly repeats', () => {
     expect(copyForMonth(source, '2025-10', '2025-10-14').date).toBe('2025-10-14')
     expect(copyForMonth(source, '2025-09', '2025-10-14').date).toBe('2025-09-01')
     expect(copyForMonth(source, '2025-10', '2025-10-14').repeats).toBe('monthly')
+  })
+})
+
+describe('budget line picker', () => {
+  it('offers this month\'s plan rows, sorted by category then description', () => {
+    const lines = budgetLinesForDate(sheetPlan(M), `${M}-14`)
+    expect(lines).toHaveLength(16)
+    expect(lines.every((line) => line.month === M)).toBe(true)
+    expect(
+      lines.filter((line) => line.category === 'Kreditlər').map((line) => line.description),
+    ).toEqual([
+      'Adi kredit kartı',
+      'Qızıl krediti',
+      'Nağd kredit kartı',
+      'Umiko kredit kartı',
+    ])
+  })
+
+  it('hides other months, so October\'s rent is not offered in September', () => {
+    expect(budgetLinesForDate(sheetPlan(M), '2025-09-30')).toEqual([])
   })
 })

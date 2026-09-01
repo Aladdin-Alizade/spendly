@@ -248,6 +248,25 @@ export function budgetLinesInMonth(
   return byMonth(budgetLines, month)
 }
 
+/**
+ * The plan rows a transaction dated `date` can be filled from. Empty when
+ * that month has no plan — the picker then stays hidden, because an empty
+ * list is not a choice.
+ *
+ * Sorted by category then description so the select can group without the
+ * UI inventing an order.
+ */
+export function budgetLinesForDate(
+  budgetLines: BudgetLine[],
+  date: DateKey,
+): BudgetLine[] {
+  return [...budgetLinesInMonth(budgetLines, monthOf(date))].sort(
+    (a, b) =>
+      a.category.localeCompare(b.category, 'az') ||
+      a.description.localeCompare(b.description, 'az'),
+  )
+}
+
 /** 'BÜDCƏ İCMALI'!D13 — actual income is the sum of income transactions. */
 export function actualIncome(transactions: Transaction[], month: MonthKey): number {
   return sum(

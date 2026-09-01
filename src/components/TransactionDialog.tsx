@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { parseAmount } from '../lib/money'
+import { formatAZN, parseAmount } from '../lib/money'
 import { hasErrors, validateTransaction } from '../lib/validate'
 import type { FieldErrors, TransactionInput } from '../lib/validate'
 import { categoryNames } from '../lib/categories'
-import { descriptionSuggestions, lastCategoryForDescription } from '../lib/calc'
+import {
+  budgetLinesForDate,
+  descriptionSuggestions,
+  lastCategoryForDescription,
+} from '../lib/calc'
 import { useFinance } from '../store/FinanceProvider'
-import type { Transaction, TransactionType } from '../lib/types'
+import type { BudgetLine, Transaction, TransactionType } from '../lib/types'
 
 /**
- * Add / edit. Deliberately six fields, five of which are pre-filled or
- * one-tap, so logging a spend takes a description and an amount.
+ * Add / edit. Most fields are pre-filled or one-tap. A month that already
+ * has a plan can fill description, category and amount from a row of it —
+ * optional, because not every spend was named in advance.
  */
 export function TransactionDialog({
   transaction,
@@ -50,8 +55,27 @@ export function TransactionDialog({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   /* An edit, or a prefilled repeat, already has its category. */
   const [categoryTouched, setCategoryTouched] = useState(isEditing || Boolean(defaults))
+  const [budgetLineId, setBudgetLineId] = useState('')
 
   const categories = input.type === 'income' ? incomeCategories : expenseCategories
+
+  const planLines = useMemo(
+    () =>
+      input.type === 'expense'
+        ? budgetLinesForDate(data.budgetLines, input.date)
+        : [],
+    [data.budgetLines, input.type, input.date],
+  )
+
+  const planGroups = useMemo(() => {
+    const groups: { category: string; lines: BudgetLine[] }[] = []
+    for (const line of planLines) {
+      const last = groups[groups.length - 1]
+      if (last && last.category === line.category) last.lines.push(line)
+      else groups.push({ category: line.category, lines: [line] })
+    }
+    return groups
+  }, [planLines])
 
   /* A transaction being edited keeps a category that has since been removed,
      so it stays selectable here — editing an old record must not silently
@@ -109,11 +133,38 @@ export function TransactionDialog({
 
   const setType = (type: TransactionType) => {
     setCategoryTouched(false)
+    setBudgetLineId('')
     setInput((previous) => ({
       ...previous,
       type,
       // Category lists differ per type, so reset to a valid one.
       category: (type === 'income' ? incomeCategories[0] : expenseCategories[0]) ?? '',
+    }))
+  }
+
+  const setDate = (date: string) => {
+    setInput((previous) => ({ ...previous, date }))
+    setBudgetLineId((current) =>
+      budgetLinesForDate(data.budgetLines, date).some((line) => line.id === current)
+        ? current
+        : '',
+    )
+  }
+
+  const applyBudgetLine = (id: string) => {
+    if (!id) {
+      setBudgetLineId('')
+      return
+    }
+    const line = planLines.find((entry) => entry.id === id)
+    if (!line) return
+    setCategoryTouched(true)
+    setBudgetLineId(id)
+    setInput((previous) => ({
+      ...previous,
+      category: line.category,
+      description: line.description,
+      amount: line.planned > 0 ? String(line.planned) : previous.amount,
     }))
   }
 
@@ -186,6 +237,34 @@ export function TransactionDialog({
               Gəlir
             </button>
           </div>
+
+          {planLines.length > 0 && (
+            <div className="field">
+              <label className="field-label" htmlFor="tx-budget-line">
+                Büdcə sətri{' '}
+                <span style={{ color: 'var(--text-faint)' }}>· istəyə bağlı</span>
+              </label>
+              <div className="select-wrap">
+                <select
+                  id="tx-budget-line"
+                  className="select"
+                  value={budgetLineId}
+                  onChange={(event) => applyBudgetLine(event.target.value)}
+                >
+                  <option value="">Seçilməyib</option>
+                  {planGroups.map((group) => (
+                    <optgroup key={group.category} label={group.category}>
+                      {group.lines.map((line) => (
+                        <option key={line.id} value={line.id}>
+                          {line.description} · {formatAZN(line.planned)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
 
           <div className="field">
             <label className="field-label" htmlFor="tx-amount">
@@ -282,7 +361,7 @@ export function TransactionDialog({
                 max="2999-12-31"
                 value={input.date}
                 aria-invalid={Boolean(visibleErrors.date)}
-                onChange={(event) => set('date', event.target.value)}
+                onChange={(event) => setDate(event.target.value)}
               />
               {visibleErrors.date && (
                 <p className="field-error">{visibleErrors.date}</p>
